@@ -1,0 +1,79 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #f5f4f0;
+  color: #2b2b28;
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.75rem 1.25rem;
+  background: #2e5339;
+  color: #fff;
+  flex-wrap: wrap;
+}
+
+.logo {
+  font-size: 1.25rem;
+  letter-spacing: 0.02em;
+}
+
+.role-switcher {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.role,
+.reset {
+  font: inherit;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+}
+
+.role:hover,
+.reset:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.role.active {
+  background: #fff;
+  color: #2e5339;
+  border-color: #fff;
+  font-weight: 600;
+}
+
+.reset {
+  margin-left: auto;
+  border-style: dashed;
+}
+
+.view {
+  padding: 2rem 1.5rem;
+  max-width: 42rem;
+}
+
+.view h2 {
+  margin-bottom: 0.75rem;
+}
+
+.view p {
+  color: #55534d;
+  line-height: 1.5;
+}
