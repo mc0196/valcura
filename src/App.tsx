@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { ROLES, type Role, type ValCuraStore } from "./store/store";
+import { CoordinatorView } from "./views/CoordinatorView";
 import "./App.css";
 
 // UI copy stays in Italian: the demo is pitched to the founding partners.
@@ -10,8 +11,7 @@ const LABELS: Record<Role, string> = {
   admin: "Admin",
 };
 
-const DESCRIPTIONS: Record<Role, string> = {
-  coordinator: "Qui il coordinatore vedrà le richieste da assegnare e il calendario della valle.",
+const DESCRIPTIONS: Record<Exclude<Role, "coordinator">, string> = {
   collaborator: "Qui il collaboratore vedrà i propri incarichi e il tetto annuo dei compensi.",
   family: "Qui la famiglia vedrà i servizi attivi per il proprio caro e il report periodico.",
   admin: "Qui l'admin vedrà abbonamenti, collaboratori e impostazioni della piattaforma.",
@@ -41,8 +41,14 @@ export function App({ store }: { store: ValCuraStore }) {
         </button>
       </header>
       <main className="view">
-        <h2>Vista {LABELS[state.role]}</h2>
-        <p>{DESCRIPTIONS[state.role]}</p>
+        {state.role === "coordinator" ? (
+          <CoordinatorView store={store} requests={state.requests} />
+        ) : (
+          <>
+            <h2>Vista {LABELS[state.role]}</h2>
+            <p>{DESCRIPTIONS[state.role]}</p>
+          </>
+        )}
       </main>
     </div>
   );

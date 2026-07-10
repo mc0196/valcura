@@ -77,3 +77,120 @@ body {
   color: #55534d;
   line-height: 1.5;
 }
+
+.coordinator {
+  display: grid;
+  gap: 2.5rem;
+}
+
+.request-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 1rem;
+  align-items: end;
+  margin-top: 1rem;
+  padding: 1.25rem;
+  background: #fff;
+  border: 1px solid #e2e0d8;
+  border-radius: 0.75rem;
+}
+
+.request-form label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #55534d;
+}
+
+.request-form .notes-field {
+  grid-column: 1 / -1;
+}
+
+.request-form select,
+.request-form input,
+.request-form textarea {
+  font: inherit;
+  font-weight: 400;
+  color: inherit;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #cfccc2;
+  border-radius: 0.5rem;
+  background: #fff;
+}
+
+.request-form textarea {
+  resize: vertical;
+}
+
+.request-form .primary {
+  font: inherit;
+  font-weight: 600;
+  padding: 0.55rem 1.2rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: #2e5339;
+  color: #fff;
+  cursor: pointer;
+  justify-self: start;
+}
+
+.request-form .primary:hover {
+  background: #3c6a4a;
+}
+
+.queue {
+  list-style: none;
+  padding: 0;
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.request-card {
+  padding: 0.9rem 1.1rem;
+  background: #fff;
+  border: 1px solid #e2e0d8;
+  border-radius: 0.75rem;
+}
+
+.request-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.request-meta {
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+  color: #55534d;
+}
+
+.request-notes {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.badge {
+  padding: 0.15rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge.new {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.badge.assigned {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.badge.completed {
+  background: #dcfce7;
+  color: #15803d;
+}
