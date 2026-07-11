@@ -272,6 +272,127 @@ describe("ValCura store", () => {
     expect(reloaded?.assigneeId).toBe("c-franca");
   });
 
+  it("completes an assigned request with the closing note, keeping its collaborator", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "accompaniment",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-franca");
+
+    store.completeRequest(request.id, "  La sig.ra Maria sta bene, due chiacchiere in cucina  ");
+
+    const completed = store.getState().requests.find((r) => r.id === request.id);
+    expect(completed?.status).toBe("completed");
+    expect(completed?.assigneeId).toBe("c-franca");
+    expect(completed?.completionNote).toBe("La sig.ra Maria sta bene, due chiacchiere in cucina");
+  });
+
+  it("refuses to complete a request that was never assigned", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+
+    expect(() => store.completeRequest(request.id, "Tutto fatto")).toThrow();
+
+    expect(store.getState().requests.find((r) => r.id === request.id)?.status).toBe("new");
+  });
+
+  it("refuses to complete an already completed request, keeping the first note", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-luca");
+    store.completeRequest(request.id, "Spesa consegnata, tutto bene");
+
+    expect(() => store.completeRequest(request.id, "Un'altra nota")).toThrow();
+
+    const completed = store.getState().requests.find((r) => r.id === request.id);
+    expect(completed?.completionNote).toBe("Spesa consegnata, tutto bene");
+  });
+
+  it("refuses to complete without a closing note, leaving the request assigned", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-luca");
+
+    expect(() => store.completeRequest(request.id, "   ")).toThrow();
+
+    expect(store.getState().requests.find((r) => r.id === request.id)?.status).toBe("assigned");
+  });
+
+  it("keeps a completion and its note across a reload (new store on the same storage)", () => {
+    const storage = inMemoryStorage();
+    const store = createStore(storage);
+    const request = store.createRequest({
+      recipientId: "a-ercole",
+      service: "errand",
+      dueDate: "2026-07-15",
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-franca");
+    store.completeRequest(request.id, "Pacco ritirato in posta e consegnato");
+
+    const reloaded = createStore(storage).getState().requests.find((r) => r.id === request.id);
+
+    expect(reloaded?.status).toBe("completed");
+    expect(reloaded?.completionNote).toBe("Pacco ritirato in posta e consegnato");
+  });
+
+  it("frees the collaborator's load once their mission is completed", () => {
+    const store = createStore(inMemoryStorage());
+    const first = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    store.assignRequest(first.id, "c-luca");
+    store.completeRequest(first.id, "Spesa fatta, tutto bene");
+    const second = store.createRequest({
+      recipientId: "a-ercole",
+      service: "errand",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+
+    const luca = store.suggestCollaborators(second.id).find((s) => s.collaborator.id === "c-luca");
+
+    expect(luca?.load).toBe(0);
+  });
+
+  it("notifies listeners when a mission is completed", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-pierina",
+      service: "groceries",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-omar");
+    let notifications = 0;
+    store.subscribe(() => notifications++);
+
+    store.completeRequest(request.id, "Spesa consegnata alla sig.ra Pierina");
+
+    expect(notifications).toBe(1);
+  });
+
   it("falls back to the seed when saved state predates collaborators", () => {
     const storage = inMemoryStorage();
     storage.setItem("valcura:state", JSON.stringify({ role: "family", requests: [] }));
