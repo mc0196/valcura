@@ -4,42 +4,10 @@ import {
   type Collaborator,
   type ServiceRequest,
   type ServiceType,
-  type RequestStatus,
   type ValCuraStore,
 } from "../store/store";
 import { CARE_RECIPIENTS } from "../store/seed";
-
-const SERVICE_LABELS: Record<ServiceType, string> = {
-  groceries: "Spesa",
-  medications: "Farmaci",
-  accompaniment: "Accompagnamento",
-  errand: "Commissione",
-};
-
-const STATUS_LABELS: Record<RequestStatus, string> = {
-  new: "nuova",
-  assigned: "assegnata",
-  completed: "completata",
-};
-
-function localToday(): string {
-  const d = new Date();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${month}-${day}`;
-}
-
-function formatDate(isoDate: string): string {
-  return new Date(`${isoDate}T00:00:00`).toLocaleDateString("it-IT", {
-    weekday: "short",
-    day: "numeric",
-    month: "long",
-  });
-}
-
-function recipientName(recipientId: string): string {
-  return CARE_RECIPIENTS.find((r) => r.id === recipientId)?.name ?? "Assistito sconosciuto";
-}
+import { SERVICE_LABELS, STATUS_LABELS, formatDate, localToday, recipientName } from "./format";
 
 function loadLabel(load: number): string {
   if (load === 0) return "nessun incarico aperto";
@@ -136,6 +104,9 @@ export function CoordinatorView({
                 )}
               </div>
               {request.notes !== "" && <p className="request-notes">{request.notes}</p>}
+              {request.completionNote !== undefined && (
+                <p className="completion-note">Nota di chiusura: “{request.completionNote}”</p>
+              )}
               {request.status === "new" && (
                 <button
                   className="suggest-toggle"

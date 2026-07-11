@@ -77,6 +77,7 @@ export function seedRequests(): ServiceRequest[] {
       notes: "Visita di controllo in ospedale, portare il libretto sanitario",
       status: "completed",
       assigneeId: "c-sara",
+      completionNote: "Visita andata bene, la sig.ra Maria è serena. Prossimo controllo tra sei mesi.",
     },
   ];
 }

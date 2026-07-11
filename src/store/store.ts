@@ -44,6 +44,8 @@ export interface ServiceRequest {
   status: RequestStatus;
   /** The collaborator the request is assigned to; absent while status is "new". */
   assigneeId?: string;
+  /** The collaborator's closing note in plain language; present once status is "completed". */
+  completionNote?: string;
 }
 
 export type CreateRequestInput = Omit<ServiceRequest, "id" | "status">;
@@ -91,7 +93,8 @@ function isServiceRequest(value: unknown): value is ServiceRequest {
     typeof r.dueDate === "string" &&
     typeof r.notes === "string" &&
     (REQUEST_STATUSES as readonly string[]).includes(r.status as string) &&
-    (r.assigneeId === undefined || typeof r.assigneeId === "string")
+    (r.assigneeId === undefined || typeof r.assigneeId === "string") &&
+    (r.completionNote === undefined || typeof r.completionNote === "string")
   );
 }
 
@@ -148,6 +151,8 @@ export interface ValCuraStore {
   suggestCollaborators(requestId: string): CollaboratorSuggestion[];
   /** Moves a "new" request to "assigned" with the chosen collaborator. */
   assignRequest(requestId: string, collaboratorId: string): void;
+  /** Moves an "assigned" request to "completed"; the closing note is required. */
+  completeRequest(requestId: string, note: string): void;
   resetDemo(): void;
   subscribe(listener: () => void): () => void;
 }
@@ -207,6 +212,22 @@ export function createStore(storage: Storage): ValCuraStore {
         ...state,
         requests: state.requests.map((r) =>
           r.id === requestId ? { ...r, status: "assigned", assigneeId: collaboratorId } : r,
+        ),
+      });
+    },
+    completeRequest: (requestId, note) => {
+      const request = requireRequest(requestId);
+      if (request.status !== "assigned") {
+        throw new Error(`Request ${requestId} is ${request.status}, not assigned`);
+      }
+      const completionNote = note.trim();
+      if (completionNote === "") {
+        throw new Error(`Request ${requestId} needs a closing note to be completed`);
+      }
+      update({
+        ...state,
+        requests: state.requests.map((r) =>
+          r.id === requestId ? { ...r, status: "completed", completionNote } : r,
         ),
       });
     },
