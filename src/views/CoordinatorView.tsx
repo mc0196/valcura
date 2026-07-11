@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import {
   SERVICE_TYPES,
+  type Collaborator,
   type ServiceRequest,
   type ServiceType,
   type RequestStatus,
@@ -40,17 +41,29 @@ function recipientName(recipientId: string): string {
   return CARE_RECIPIENTS.find((r) => r.id === recipientId)?.name ?? "Assistito sconosciuto";
 }
 
+function loadLabel(load: number): string {
+  if (load === 0) return "nessun incarico aperto";
+  return load === 1 ? "1 incarico aperto" : `${load} incarichi aperti`;
+}
+
 export function CoordinatorView({
   store,
   requests,
+  collaborators,
 }: {
   store: ValCuraStore;
   requests: ServiceRequest[];
+  collaborators: Collaborator[];
 }) {
   const [recipientId, setRecipientId] = useState(CARE_RECIPIENTS[0].id);
   const [service, setService] = useState<ServiceType>("groceries");
   const [dueDate, setDueDate] = useState(localToday());
   const [notes, setNotes] = useState("");
+  const [suggestingForId, setSuggestingForId] = useState<string | null>(null);
+
+  function collaboratorName(collaboratorId: string): string {
+    return collaborators.find((c) => c.id === collaboratorId)?.name ?? "Collaboratore sconosciuto";
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -118,8 +131,53 @@ export function CoordinatorView({
               </div>
               <div className="request-meta">
                 {SERVICE_LABELS[request.service]} · {formatDate(request.dueDate)}
+                {request.assigneeId !== undefined && (
+                  <> · {collaboratorName(request.assigneeId)}</>
+                )}
               </div>
               {request.notes !== "" && <p className="request-notes">{request.notes}</p>}
+              {request.status === "new" && (
+                <button
+                  className="suggest-toggle"
+                  onClick={() =>
+                    setSuggestingForId(suggestingForId === request.id ? null : request.id)
+                  }
+                >
+                  {suggestingForId === request.id ? "Chiudi suggerimenti" : "Scegli collaboratore"}
+                </button>
+              )}
+              {request.status === "new" && suggestingForId === request.id && (
+                <ul className="suggestions">
+                  {store.suggestCollaborators(request.id).map((suggestion) => (
+                    <li key={suggestion.collaborator.id} className="suggestion">
+                      <div>
+                        <strong>{suggestion.collaborator.name}</strong>
+                        <span className="suggestion-ranking">
+                          {" "}
+                          ★ {suggestion.collaborator.ranking.toLocaleString("it-IT")}
+                        </span>
+                        <div className="suggestion-meta">
+                          {suggestion.collaborator.zone}
+                          {suggestion.inRecipientZone && " (zona dell'assistito)"} ·{" "}
+                          {suggestion.collaborator.availableToday
+                            ? "disponibile oggi"
+                            : "non disponibile oggi"}{" "}
+                          · {loadLabel(suggestion.load)}
+                        </div>
+                      </div>
+                      <button
+                        className="primary assign"
+                        onClick={() => {
+                          store.assignRequest(request.id, suggestion.collaborator.id);
+                          setSuggestingForId(null);
+                        }}
+                      >
+                        Assegna
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           ))}
         </ul>

@@ -42,7 +42,11 @@ export function App({ store }: { store: ValCuraStore }) {
       </header>
       <main className="view">
         {state.role === "coordinator" ? (
-          <CoordinatorView store={store} requests={state.requests} />
+          <CoordinatorView
+            store={store}
+            requests={state.requests}
+            collaborators={state.collaborators}
+          />
         ) : (
           <>
             <h2>Vista {LABELS[state.role]}</h2>
