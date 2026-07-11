@@ -62,6 +62,8 @@ export interface ServiceRequest {
   assigneeId?: string;
   /** The collaborator's closing note in plain language; present once status is "completed". */
   completionNote?: string;
+  /** Local calendar date (YYYY-MM-DD) the mission was completed; present once status is "completed". */
+  completedAt?: string;
 }
 
 export type CreateRequestInput = Omit<ServiceRequest, "id" | "status">;
@@ -70,6 +72,38 @@ export interface AppState {
   role: Role;
   requests: ServiceRequest[];
   collaborators: Collaborator[];
+}
+
+/** One completed intervention as the family's weekly report tells it. */
+export interface ReportEntry {
+  /** The completed request this entry comes from. */
+  requestId: string;
+  /** Completion date (YYYY-MM-DD). */
+  date: string;
+  service: ServiceType;
+  collaboratorName: string;
+  /** The collaborator's closing note, quoted verbatim in the report. */
+  note: string;
+}
+
+/** The current week's report: a rolling seven-day window ending today. */
+export interface WeeklyReport {
+  /** First day covered (YYYY-MM-DD), six days before "to". */
+  from: string;
+  /** Last day covered (YYYY-MM-DD): today. */
+  to: string;
+  /** Completed interventions in the window, oldest first. */
+  entries: ReportEntry[];
+}
+
+/** A past weekly report, pre-written and immutable: the archive the family browses. */
+export interface PastReport {
+  id: string;
+  recipientId: string;
+  /** Human label of the covered week, e.g. "29 giugno – 5 luglio 2026". */
+  weekLabel: string;
+  /** Curated paragraphs, already in the report's warm tone. */
+  paragraphs: string[];
 }
 
 /** A collaborator proposed for a request, with the context the coordinator ranks them by. */
@@ -89,6 +123,23 @@ export interface Storage {
 }
 
 const STATE_KEY = "valcura:state";
+
+function toLocalIsoDate(d: Date): string {
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${month}-${day}`;
+}
+
+/** Local calendar date (YYYY-MM-DD); requests and reports reason in local dates. */
+export function localToday(): string {
+  return toLocalIsoDate(new Date());
+}
+
+function localDaysAgo(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return toLocalIsoDate(d);
+}
 
 /** The demo's starting scenario. */
 function seedScenario(): AppState {
@@ -111,7 +162,8 @@ function isServiceRequest(value: unknown): value is ServiceRequest {
     typeof r.notes === "string" &&
     (REQUEST_STATUSES as readonly string[]).includes(r.status as string) &&
     (r.assigneeId === undefined || typeof r.assigneeId === "string") &&
-    (r.completionNote === undefined || typeof r.completionNote === "string")
+    (r.completionNote === undefined || typeof r.completionNote === "string") &&
+    (r.completedAt === undefined || typeof r.completedAt === "string")
   );
 }
 
@@ -170,6 +222,11 @@ export interface ValCuraStore {
   assignRequest(requestId: string, collaboratorId: string): void;
   /** Moves an "assigned" request to "completed"; the closing note is required. */
   completeRequest(requestId: string, note: string): void;
+  /**
+   * The recipient's report for the current week: the interventions completed in
+   * the last seven days, oldest first, each with the collaborator's closing note.
+   */
+  currentReport(recipientId: string): WeeklyReport;
   resetDemo(): void;
   subscribe(listener: () => void): () => void;
 }
@@ -244,9 +301,35 @@ export function createStore(storage: Storage): ValCuraStore {
       update({
         ...state,
         requests: state.requests.map((r) =>
-          r.id === requestId ? { ...r, status: "completed", completionNote } : r,
+          r.id === requestId
+            ? { ...r, status: "completed", completionNote, completedAt: localToday() }
+            : r,
         ),
       });
+    },
+    currentReport: (recipientId) => {
+      const to = localToday();
+      const from = localDaysAgo(6);
+      const entries = state.requests
+        .filter(
+          (r): r is ServiceRequest & { completedAt: string } =>
+            r.recipientId === recipientId &&
+            r.status === "completed" &&
+            r.completedAt !== undefined &&
+            r.completedAt >= from &&
+            r.completedAt <= to,
+        )
+        .map((r) => ({
+          requestId: r.id,
+          date: r.completedAt,
+          service: r.service,
+          collaboratorName:
+            state.collaborators.find((c) => c.id === r.assigneeId)?.name ??
+            "Collaboratore sconosciuto",
+          note: r.completionNote ?? "",
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+      return { from, to, entries };
     },
     resetDemo: () => update(seedScenario()),
     subscribe: (listener) => {
