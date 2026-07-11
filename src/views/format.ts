@@ -20,13 +20,7 @@ export const CHANNEL_LABELS: Record<RequestChannel, string> = {
   family: "dalla famiglia",
 };
 
-/** Local calendar date (YYYY-MM-DD), matching how requests store their due date. */
-export function localToday(): string {
-  const d = new Date();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${month}-${day}`;
-}
+export { localToday } from "../store/store";
 
 export function formatDate(isoDate: string): string {
   return new Date(`${isoDate}T00:00:00`).toLocaleDateString("it-IT", {

@@ -6,7 +6,7 @@ import {
   type ServiceType,
   type ValCuraStore,
 } from "../store/store";
-import { FAMILY_MEMBERS } from "../store/seed";
+import { FAMILY_MEMBERS, PAST_REPORTS } from "../store/seed";
 import { SERVICE_LABELS, STATUS_LABELS, formatDate, localToday, recipientName } from "./format";
 
 export function FamilyView({
@@ -25,6 +25,8 @@ export function FamilyView({
 
   const member = FAMILY_MEMBERS.find((m) => m.id === memberId) ?? FAMILY_MEMBERS[0];
   const myRequests = requests.filter((r) => r.recipientId === member.recipientId);
+  const report = store.currentReport(member.recipientId);
+  const pastReports = PAST_REPORTS.filter((p) => p.recipientId === member.recipientId);
 
   function collaboratorName(collaboratorId: string): string {
     return collaborators.find((c) => c.id === collaboratorId)?.name ?? "Collaboratore sconosciuto";
@@ -54,6 +56,36 @@ export function FamilyView({
           ))}
         </select>
       </label>
+
+      <section aria-labelledby="report-title">
+        <h2 id="report-title">Il report della settimana</h2>
+        <article className="report-card">
+          <p className="report-week">
+            Dal {formatDate(report.from)} al {formatDate(report.to)}
+          </p>
+          <p>
+            Cara famiglia, ecco come sta andando la settimana di{" "}
+            {recipientName(member.recipientId)}.
+          </p>
+          {report.entries.length === 0 ? (
+            <p>
+              Non ci sono ancora interventi completati questa settimana: vi racconteremo qui ogni
+              visita, appena conclusa.
+            </p>
+          ) : (
+            <ul className="report-entries">
+              {report.entries.map((entry) => (
+                <li key={entry.requestId}>
+                  <strong>{formatDate(entry.date)}</strong> · {SERVICE_LABELS[entry.service]} con{" "}
+                  {entry.collaboratorName}
+                  <p className="report-note">“{entry.note}”</p>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="report-signoff">Un caro saluto dalla valle — il team ValCura</p>
+        </article>
+      </section>
 
       <section aria-labelledby="family-request-title">
         <h2 id="family-request-title">
@@ -123,6 +155,25 @@ export function FamilyView({
           </ul>
         )}
       </section>
+
+      {pastReports.length > 0 && (
+        <section aria-labelledby="archive-title">
+          <h2 id="archive-title">Archivio dei report</h2>
+          <ul className="report-archive">
+            {pastReports.map((past) => (
+              <li key={past.id}>
+                <details className="report-card">
+                  <summary>Settimana {past.weekLabel}</summary>
+                  {past.paragraphs.map((paragraph, i) => (
+                    <p key={i}>{paragraph}</p>
+                  ))}
+                  <p className="report-signoff">Un caro saluto dalla valle — il team ValCura</p>
+                </details>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

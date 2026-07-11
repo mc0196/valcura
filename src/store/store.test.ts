@@ -499,6 +499,124 @@ describe("ValCura store", () => {
     expect(notifications).toBe(1);
   });
 
+  it("tells the current week's report from completed interventions, note and collaborator included", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "family",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-luca");
+    store.completeRequest(request.id, "Spesa fatta, Maria è di ottimo umore");
+
+    const report = store.currentReport("a-maria");
+
+    // The seed accompaniment (completed two days ago by Sara) opens the week.
+    expect(report.entries.map((e) => e.requestId)).toEqual(["r-seed-3", request.id]);
+    const fresh = report.entries.at(-1);
+    expect(fresh).toMatchObject({
+      service: "groceries",
+      collaboratorName: "Luca Bettoni",
+      note: "Spesa fatta, Maria è di ottimo umore",
+    });
+  });
+
+  it("stamps the completion date, landing the intervention in today's report", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-ercole",
+      service: "errand",
+      channel: "phone",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-franca");
+    store.completeRequest(request.id, "Pacco ritirato e consegnato");
+
+    const report = store.currentReport("a-ercole");
+
+    expect(report.entries).toHaveLength(1);
+    expect(report.entries[0].date).toBe(report.to);
+  });
+
+  it("keeps other recipients' interventions out of the report", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "family",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-luca");
+    store.completeRequest(request.id, "Tutto bene");
+
+    const report = store.currentReport("a-giovanni");
+
+    expect(report.entries).toHaveLength(0);
+  });
+
+  it("leaves still-open interventions out of the report", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-giovanni",
+      service: "medications",
+      channel: "phone",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-sara");
+
+    const report = store.currentReport("a-giovanni");
+
+    expect(report.entries).toHaveLength(0);
+  });
+
+  it("leaves interventions older than the seven-day window out of the report", () => {
+    const storage = inMemoryStorage();
+    storage.setItem(
+      "valcura:state",
+      JSON.stringify({
+        role: "family",
+        requests: [
+          {
+            id: "r-old",
+            recipientId: "a-maria",
+            service: "groceries",
+            channel: "phone",
+            dueDate: "2026-01-01",
+            notes: "",
+            status: "completed",
+            assigneeId: "c-luca",
+            completionNote: "Una spesa di sei mesi fa",
+            completedAt: "2026-01-01",
+          },
+        ],
+        collaborators: [],
+      }),
+    );
+    const store = createStore(storage);
+
+    const report = store.currentReport("a-maria");
+
+    expect(store.getState().requests.some((r) => r.id === "r-old")).toBe(true);
+    expect(report.entries).toHaveLength(0);
+  });
+
+  it("covers a seven-day window ending today", () => {
+    const store = createStore(inMemoryStorage());
+
+    const report = store.currentReport("a-maria");
+
+    expect(report.from < report.to).toBe(true);
+    const from = new Date(`${report.from}T00:00:00`);
+    const to = new Date(`${report.to}T00:00:00`);
+    // Rounded: a DST change inside the window shifts the difference by up to an hour.
+    expect(Math.round((to.getTime() - from.getTime()) / 86_400_000)).toBe(6);
+  });
+
   it("falls back to the seed when saved state predates collaborators", () => {
     const storage = inMemoryStorage();
     storage.setItem("valcura:state", JSON.stringify({ role: "family", requests: [] }));

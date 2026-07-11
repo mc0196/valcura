@@ -1,4 +1,4 @@
-import type { CareRecipient, Collaborator, FamilyMember, ServiceRequest } from "./store";
+import type { CareRecipient, Collaborator, FamilyMember, PastReport, ServiceRequest } from "./store";
 
 /** Seed data stays in Italian: the demo must feel like a service already alive in the valley. */
 export const CARE_RECIPIENTS: readonly CareRecipient[] = [
@@ -48,6 +48,58 @@ export function seedCollaborators(): Collaborator[] {
   ];
 }
 
+/**
+ * The report archive, pre-written in the report's warm tone. Static content:
+ * past weeks don't change, so they live outside the mutable state.
+ */
+export const PAST_REPORTS: readonly PastReport[] = [
+  {
+    id: "rep-maria-1",
+    recipientId: "a-maria",
+    weekLabel: "29 giugno – 5 luglio 2026",
+    paragraphs: [
+      "Cara famiglia, è stata una settimana serena per la sig.ra Maria. Martedì Franca è passata per la spesa: al mercato hanno scelto insieme le albicocche per la marmellata, e Maria le ha promesso un vasetto.",
+      "Giovedì Luca l'ha accompagnata dalla parrucchiera in paese. Al ritorno si sono fermati al belvedere: Maria dice che la valle, vista da lì, «è ancora quella di quando era ragazza».",
+    ],
+  },
+  {
+    id: "rep-maria-2",
+    recipientId: "a-maria",
+    weekLabel: "22 – 28 giugno 2026",
+    paragraphs: [
+      "Cara famiglia, settimana tranquilla e in compagnia. Lunedì la consegna dei farmaci è arrivata puntuale, e Franca ne ha approfittato per due chiacchiere in cucina davanti al caffè.",
+      "Sabato Maria ha voluto sistemare i gerani sul balcone: Luca le ha portato il terriccio e ora, parole sue, «il balcone è il più bello della via».",
+    ],
+  },
+  {
+    id: "rep-giovanni-1",
+    recipientId: "a-giovanni",
+    weekLabel: "29 giugno – 5 luglio 2026",
+    paragraphs: [
+      "Cara famiglia, il sig. Giovanni sta bene. Mercoledì Sara è salita con i farmaci e la ricetta nuova del dott. Marchesi; ne hanno approfittato per una passeggiata fino alla fontana.",
+      "Giovanni continua con le parole crociate ogni sera: ci ha sfidato a trovare «un fiume di tre lettere». Ha vinto lui.",
+    ],
+  },
+  {
+    id: "rep-pierina-1",
+    recipientId: "a-pierina",
+    weekLabel: "29 giugno – 5 luglio 2026",
+    paragraphs: [
+      "Cara famiglia, la sig.ra Pierina vi saluta. Venerdì Omar ha fatto la spesa seguendo la lista sul frigo, senza dimenticare i biscotti «quelli buoni, non quelli in offerta».",
+      "Domenica pomeriggio ha ricevuto la visita della vicina e insieme hanno ascoltato la messa alla radio. Ci ha chiesto di dirvi che il rosmarino sul davanzale è fiorito.",
+    ],
+  },
+  {
+    id: "rep-ercole-1",
+    recipientId: "a-ercole",
+    weekLabel: "29 giugno – 5 luglio 2026",
+    paragraphs: [
+      "Cara famiglia, il sig. Ercole è in gran forma. Martedì Luca l'ha aiutato a ritirare il pacco in posta e al ritorno si sono fermati al bar per «il caffè dei campioni».",
+      "Ercole ha ripreso a sistemare l'orto: dice che quest'anno i pomodori «faranno invidia a tutta la media valle». Noi gli crediamo.",
+    ],
+  },
+];
+
 /** Local calendar date (YYYY-MM-DD), so seed dates track the day of the pitch. */
 function isoDaysFromToday(days: number): string {
   const d = new Date();
@@ -89,6 +141,7 @@ export function seedRequests(): ServiceRequest[] {
       status: "completed",
       assigneeId: "c-sara",
       completionNote: "Visita andata bene, la sig.ra Maria è serena. Prossimo controllo tra sei mesi.",
+      completedAt: isoDaysFromToday(-2),
     },
   ];
 }
