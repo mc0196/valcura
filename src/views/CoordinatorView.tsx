@@ -7,7 +7,14 @@ import {
   type ValCuraStore,
 } from "../store/store";
 import { CARE_RECIPIENTS } from "../store/seed";
-import { SERVICE_LABELS, STATUS_LABELS, formatDate, localToday, recipientName } from "./format";
+import {
+  CHANNEL_LABELS,
+  SERVICE_LABELS,
+  STATUS_LABELS,
+  formatDate,
+  localToday,
+  recipientName,
+} from "./format";
 
 function loadLabel(load: number): string {
   if (load === 0) return "nessun incarico aperto";
@@ -35,7 +42,7 @@ export function CoordinatorView({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    store.createRequest({ recipientId, service, dueDate, notes: notes.trim() });
+    store.createRequest({ recipientId, service, channel: "phone", dueDate, notes: notes.trim() });
     setNotes("");
   }
 
@@ -98,7 +105,8 @@ export function CoordinatorView({
                 <span className={`badge ${request.status}`}>{STATUS_LABELS[request.status]}</span>
               </div>
               <div className="request-meta">
-                {SERVICE_LABELS[request.service]} · {formatDate(request.dueDate)}
+                {SERVICE_LABELS[request.service]} · {formatDate(request.dueDate)} ·{" "}
+                {CHANNEL_LABELS[request.channel]}
                 {request.assigneeId !== undefined && (
                   <> · {collaboratorName(request.assigneeId)}</>
                 )}

@@ -61,6 +61,7 @@ describe("ValCura store", () => {
     const created = store.createRequest({
       recipientId: "a-maria",
       service: "groceries",
+      channel: "phone",
       dueDate: "2026-07-12",
       notes: "Citofonare due volte",
     });
@@ -71,6 +72,7 @@ describe("ValCura store", () => {
     expect(first).toMatchObject({
       recipientId: "a-maria",
       service: "groceries",
+      channel: "phone",
       dueDate: "2026-07-12",
       notes: "Citofonare due volte",
     });
@@ -81,6 +83,7 @@ describe("ValCura store", () => {
     const created = createStore(storage).createRequest({
       recipientId: "a-ercole",
       service: "errand",
+      channel: "phone",
       dueDate: "2026-07-15",
       notes: "",
     });
@@ -96,6 +99,7 @@ describe("ValCura store", () => {
     store.createRequest({
       recipientId: "a-maria",
       service: "medications",
+      channel: "phone",
       dueDate: "2026-07-12",
       notes: "",
     });
@@ -118,11 +122,96 @@ describe("ValCura store", () => {
     expect(store.getState().requests.length).toBeGreaterThan(0);
   });
 
+  it("creates a family request that joins the queue as new, tracked to its channel", () => {
+    const store = createStore(inMemoryStorage());
+
+    const created = store.createRequest({
+      recipientId: "a-maria",
+      service: "medications",
+      channel: "family",
+      dueDate: "2026-07-13",
+      notes: "La mamma ha finito le medicine per la pressione",
+    });
+
+    const [first] = store.getState().requests;
+    expect(first).toEqual(created);
+    expect(first.status).toBe("new");
+    expect(first.channel).toBe("family");
+  });
+
+  it("keeps the origin channel across a reload (new store on the same storage)", () => {
+    const storage = inMemoryStorage();
+    const created = createStore(storage).createRequest({
+      recipientId: "a-pierina",
+      service: "errand",
+      channel: "family",
+      dueDate: "2026-07-13",
+      notes: "",
+    });
+
+    const reloaded = createStore(storage).getState().requests.find((r) => r.id === created.id);
+
+    expect(reloaded?.channel).toBe("family");
+  });
+
+  it("lets a family request flow through assignment like a phone one", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "family",
+      dueDate: "2026-07-13",
+      notes: "",
+    });
+
+    store.assignRequest(request.id, "c-luca");
+
+    const assigned = store.getState().requests.find((r) => r.id === request.id);
+    expect(assigned?.status).toBe("assigned");
+    expect(assigned?.channel).toBe("family");
+  });
+
+  it("seeds requests from both entry channels, so the demo shows them side by side", () => {
+    const store = createStore(inMemoryStorage());
+
+    const channels = store.getState().requests.map((r) => r.channel);
+
+    expect(channels).toContain("phone");
+    expect(channels).toContain("family");
+  });
+
+  it("falls back to the seed when saved requests predate the origin channel", () => {
+    const storage = inMemoryStorage();
+    storage.setItem(
+      "valcura:state",
+      JSON.stringify({
+        role: "family",
+        requests: [
+          {
+            id: "r-old",
+            recipientId: "a-maria",
+            service: "groceries",
+            dueDate: "2026-07-01",
+            notes: "",
+            status: "new",
+          },
+        ],
+        collaborators: [],
+      }),
+    );
+
+    const store = createStore(storage);
+
+    expect(store.getState().role).toBe("coordinator");
+    expect(store.getState().requests.every((r) => r.channel !== undefined)).toBe(true);
+  });
+
   it("suggests the seed collaborators for a new request, with zone, availability, load and ranking", () => {
     const store = createStore(inMemoryStorage());
     const request = store.createRequest({
       recipientId: "a-maria",
       service: "groceries",
+      channel: "phone",
       dueDate: "2026-07-12",
       notes: "",
     });
@@ -144,6 +233,7 @@ describe("ValCura store", () => {
     const request = store.createRequest({
       recipientId: "a-pierina",
       service: "groceries",
+      channel: "phone",
       dueDate: "2026-07-12",
       notes: "",
     });
@@ -159,6 +249,7 @@ describe("ValCura store", () => {
     const request = store.createRequest({
       recipientId: "a-maria",
       service: "groceries",
+      channel: "phone",
       dueDate: "2026-07-12",
       notes: "",
     });
@@ -175,6 +266,7 @@ describe("ValCura store", () => {
     const request = store.createRequest({
       recipientId: "a-maria",
       service: "groceries",
+      channel: "phone",
       dueDate: "2026-07-12",
       notes: "",
     });
@@ -190,6 +282,7 @@ describe("ValCura store", () => {
     const request = store.createRequest({
       recipientId: "a-maria",
       service: "groceries",
+      channel: "phone",
       dueDate: "2026-07-12",
       notes: "",
     });
@@ -206,6 +299,7 @@ describe("ValCura store", () => {
     const request = store.createRequest({
       recipientId: "a-maria",
       service: "groceries",
+      channel: "phone",
       dueDate: "2026-07-12",
       notes: "",
     });
@@ -222,6 +316,7 @@ describe("ValCura store", () => {
     const first = store.createRequest({
       recipientId: "a-maria",
       service: "groceries",
+      channel: "phone",
       dueDate: "2026-07-12",
       notes: "",
     });
@@ -229,6 +324,7 @@ describe("ValCura store", () => {
     const second = store.createRequest({
       recipientId: "a-ercole",
       service: "errand",
+      channel: "phone",
       dueDate: "2026-07-12",
       notes: "",
     });
@@ -246,6 +342,7 @@ describe("ValCura store", () => {
     const request = store.createRequest({
       recipientId: "a-maria",
       service: "groceries",
+      channel: "phone",
       dueDate: "2026-07-12",
       notes: "",
     });
@@ -261,6 +358,7 @@ describe("ValCura store", () => {
     const request = store.createRequest({
       recipientId: "a-ercole",
       service: "errand",
+      channel: "phone",
       dueDate: "2026-07-15",
       notes: "",
     });
@@ -277,6 +375,7 @@ describe("ValCura store", () => {
     const request = store.createRequest({
       recipientId: "a-maria",
       service: "accompaniment",
+      channel: "phone",
       dueDate: "2026-07-12",
       notes: "",
     });
@@ -295,6 +394,7 @@ describe("ValCura store", () => {
     const request = store.createRequest({
       recipientId: "a-maria",
       service: "groceries",
+      channel: "phone",
       dueDate: "2026-07-12",
       notes: "",
     });
@@ -309,6 +409,7 @@ describe("ValCura store", () => {
     const request = store.createRequest({
       recipientId: "a-maria",
       service: "groceries",
+      channel: "phone",
       dueDate: "2026-07-12",
       notes: "",
     });
@@ -326,6 +427,7 @@ describe("ValCura store", () => {
     const request = store.createRequest({
       recipientId: "a-maria",
       service: "groceries",
+      channel: "phone",
       dueDate: "2026-07-12",
       notes: "",
     });
@@ -342,6 +444,7 @@ describe("ValCura store", () => {
     const request = store.createRequest({
       recipientId: "a-ercole",
       service: "errand",
+      channel: "phone",
       dueDate: "2026-07-15",
       notes: "",
     });
@@ -359,6 +462,7 @@ describe("ValCura store", () => {
     const first = store.createRequest({
       recipientId: "a-maria",
       service: "groceries",
+      channel: "phone",
       dueDate: "2026-07-12",
       notes: "",
     });
@@ -367,6 +471,7 @@ describe("ValCura store", () => {
     const second = store.createRequest({
       recipientId: "a-ercole",
       service: "errand",
+      channel: "phone",
       dueDate: "2026-07-12",
       notes: "",
     });
@@ -381,6 +486,7 @@ describe("ValCura store", () => {
     const request = store.createRequest({
       recipientId: "a-pierina",
       service: "groceries",
+      channel: "phone",
       dueDate: "2026-07-12",
       notes: "",
     });
@@ -410,6 +516,7 @@ describe("ValCura store", () => {
     store.createRequest({
       recipientId: "a-pierina",
       service: "accompaniment",
+      channel: "phone",
       dueDate: "2026-07-14",
       notes: "",
     });

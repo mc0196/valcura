@@ -1,4 +1,4 @@
-import type { RequestStatus, ServiceType } from "../store/store";
+import type { RequestChannel, RequestStatus, ServiceType } from "../store/store";
 import { CARE_RECIPIENTS } from "../store/seed";
 
 // UI copy stays in Italian: the demo is pitched to the founding partners.
@@ -13,6 +13,11 @@ export const STATUS_LABELS: Record<RequestStatus, string> = {
   new: "nuova",
   assigned: "assegnata",
   completed: "completata",
+};
+
+export const CHANNEL_LABELS: Record<RequestChannel, string> = {
+  phone: "da telefonata",
+  family: "dalla famiglia",
 };
 
 /** Local calendar date (YYYY-MM-DD), matching how requests store their due date. */

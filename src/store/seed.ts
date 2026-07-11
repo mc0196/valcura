@@ -1,4 +1,4 @@
-import type { CareRecipient, Collaborator, ServiceRequest } from "./store";
+import type { CareRecipient, Collaborator, FamilyMember, ServiceRequest } from "./store";
 
 /** Seed data stays in Italian: the demo must feel like a service already alive in the valley. */
 export const CARE_RECIPIENTS: readonly CareRecipient[] = [
@@ -6,6 +6,14 @@ export const CARE_RECIPIENTS: readonly CareRecipient[] = [
   { id: "a-giovanni", name: "Giovanni Fanchini", zone: "Alta valle" },
   { id: "a-pierina", name: "Pierina Gasparini", zone: "Bassa valle" },
   { id: "a-ercole", name: "Ercole Salvetti", zone: "Media valle" },
+];
+
+/** One relative per recipient, all living outside the valley: the remote channel's users. */
+export const FAMILY_MEMBERS: readonly FamilyMember[] = [
+  { id: "f-anna", name: "Anna Pedretti", recipientId: "a-maria", city: "Milano" },
+  { id: "f-marco", name: "Marco Fanchini", recipientId: "a-giovanni", city: "Torino" },
+  { id: "f-carla", name: "Carla Gasparini", recipientId: "a-pierina", city: "Bergamo" },
+  { id: "f-elio", name: "Elio Salvetti", recipientId: "a-ercole", city: "Brescia" },
 ];
 
 /**
@@ -56,6 +64,7 @@ export function seedRequests(): ServiceRequest[] {
       id: "r-seed-1",
       recipientId: "a-giovanni",
       service: "medications",
+      channel: "phone",
       dueDate: isoDaysFromToday(1),
       notes: "Ritirare la ricetta dal dott. Marchesi prima della farmacia",
       status: "new",
@@ -64,6 +73,7 @@ export function seedRequests(): ServiceRequest[] {
       id: "r-seed-2",
       recipientId: "a-pierina",
       service: "groceries",
+      channel: "phone",
       dueDate: isoDaysFromToday(0),
       notes: "Lista appesa al frigo, pagare con la busta nel cassetto",
       status: "assigned",
@@ -73,6 +83,7 @@ export function seedRequests(): ServiceRequest[] {
       id: "r-seed-3",
       recipientId: "a-maria",
       service: "accompaniment",
+      channel: "family",
       dueDate: isoDaysFromToday(-2),
       notes: "Visita di controllo in ospedale, portare il libretto sanitario",
       status: "completed",

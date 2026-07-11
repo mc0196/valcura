@@ -27,8 +27,22 @@ export interface Collaborator {
   ranking: number;
 }
 
+/** A relative living outside the valley who follows a care recipient remotely. */
+export interface FamilyMember {
+  id: string;
+  name: string;
+  /** The care recipient this family member follows. */
+  recipientId: string;
+  /** Where the family member lives; makes "from afar" tangible in the demo. */
+  city: string;
+}
+
 export const SERVICE_TYPES = ["groceries", "medications", "accompaniment", "errand"] as const;
 export type ServiceType = (typeof SERVICE_TYPES)[number];
+
+/** How a request enters the queue: coordinator phone call or the family app. */
+export const REQUEST_CHANNELS = ["phone", "family"] as const;
+export type RequestChannel = (typeof REQUEST_CHANNELS)[number];
 
 export const REQUEST_STATUSES = ["new", "assigned", "completed"] as const;
 export type RequestStatus = (typeof REQUEST_STATUSES)[number];
@@ -38,6 +52,8 @@ export interface ServiceRequest {
   id: string;
   recipientId: string;
   service: ServiceType;
+  /** Origin channel; the queue treats both the same, but the source stays visible. */
+  channel: RequestChannel;
   /** Local calendar date (YYYY-MM-DD) the recipient asked the service for. */
   dueDate: string;
   notes: string;
@@ -90,6 +106,7 @@ function isServiceRequest(value: unknown): value is ServiceRequest {
     typeof r.id === "string" &&
     typeof r.recipientId === "string" &&
     (SERVICE_TYPES as readonly string[]).includes(r.service as string) &&
+    (REQUEST_CHANNELS as readonly string[]).includes(r.channel as string) &&
     typeof r.dueDate === "string" &&
     typeof r.notes === "string" &&
     (REQUEST_STATUSES as readonly string[]).includes(r.status as string) &&
