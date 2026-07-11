@@ -1,12 +1,44 @@
-import type { CareRecipient, ServiceRequest } from "./store";
+import type { CareRecipient, Collaborator, ServiceRequest } from "./store";
 
 /** Seed data stays in Italian: the demo must feel like a service already alive in the valley. */
 export const CARE_RECIPIENTS: readonly CareRecipient[] = [
-  { id: "a-maria", name: "Maria Pedretti" },
-  { id: "a-giovanni", name: "Giovanni Fanchini" },
-  { id: "a-pierina", name: "Pierina Gasparini" },
-  { id: "a-ercole", name: "Ercole Salvetti" },
+  { id: "a-maria", name: "Maria Pedretti", zone: "Media valle" },
+  { id: "a-giovanni", name: "Giovanni Fanchini", zone: "Alta valle" },
+  { id: "a-pierina", name: "Pierina Gasparini", zone: "Bassa valle" },
+  { id: "a-ercole", name: "Ercole Salvetti", zone: "Media valle" },
 ];
+
+/**
+ * Zones, availability and rankings are spread out so the suggestion list visibly
+ * reorders during the pitch (zone match, busy collaborator, unavailable one).
+ * Deliberately NOT in suggestion order, so tests catch a missing sort.
+ */
+export function seedCollaborators(): Collaborator[] {
+  return [
+    {
+      id: "c-omar",
+      name: "Omar Bazzana",
+      zone: "Bassa valle",
+      availableToday: false,
+      ranking: 4.8,
+    },
+    {
+      id: "c-sara",
+      name: "Sara Ghirardelli",
+      zone: "Alta valle",
+      availableToday: true,
+      ranking: 4.9,
+    },
+    {
+      id: "c-franca",
+      name: "Franca Damioli",
+      zone: "Media valle",
+      availableToday: true,
+      ranking: 4.5,
+    },
+    { id: "c-luca", name: "Luca Bettoni", zone: "Media valle", availableToday: true, ranking: 4.7 },
+  ];
+}
 
 /** Local calendar date (YYYY-MM-DD), so seed dates track the day of the pitch. */
 function isoDaysFromToday(days: number): string {
@@ -35,6 +67,7 @@ export function seedRequests(): ServiceRequest[] {
       dueDate: isoDaysFromToday(0),
       notes: "Lista appesa al frigo, pagare con la busta nel cassetto",
       status: "assigned",
+      assigneeId: "c-omar",
     },
     {
       id: "r-seed-3",
@@ -43,6 +76,7 @@ export function seedRequests(): ServiceRequest[] {
       dueDate: isoDaysFromToday(-2),
       notes: "Visita di controllo in ospedale, portare il libretto sanitario",
       status: "completed",
+      assigneeId: "c-sara",
     },
   ];
 }

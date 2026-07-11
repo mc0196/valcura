@@ -172,6 +172,71 @@ body {
   font-size: 0.9rem;
 }
 
+.suggest-toggle {
+  margin-top: 0.65rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.35rem 0.9rem;
+  border: 1px solid #2e5339;
+  border-radius: 999px;
+  background: transparent;
+  color: #2e5339;
+  cursor: pointer;
+}
+
+.suggest-toggle:hover {
+  background: #eef3ef;
+}
+
+.suggestions {
+  list-style: none;
+  padding: 0;
+  margin-top: 0.75rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.suggestion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.8rem;
+  background: #f8f7f3;
+  border: 1px solid #e2e0d8;
+  border-radius: 0.5rem;
+}
+
+.suggestion-ranking {
+  font-size: 0.85rem;
+  color: #b45309;
+  font-weight: 600;
+}
+
+.suggestion-meta {
+  margin-top: 0.15rem;
+  font-size: 0.8rem;
+  color: #55534d;
+}
+
+.suggestion .assign {
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.4rem 1rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: #2e5339;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.suggestion .assign:hover {
+  background: #3c6a4a;
+}
+
 .badge {
   padding: 0.15rem 0.65rem;
   border-radius: 999px;
