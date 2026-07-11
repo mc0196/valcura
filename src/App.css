@@ -244,7 +244,8 @@ body {
   color: #2e5339;
 }
 
-.collaborator {
+.collaborator,
+.family {
   display: grid;
   gap: 2rem;
 }
