@@ -12,6 +12,7 @@ import {
   SERVICE_LABELS,
   STATUS_LABELS,
   formatDate,
+  formatRanking,
   localToday,
   recipientName,
 } from "./format";
@@ -19,6 +20,14 @@ import {
 function loadLabel(load: number): string {
   if (load === 0) return "nessun incarico aperto";
   return load === 1 ? "1 incarico aperto" : `${load} incarichi aperti`;
+}
+
+function ratingsLabel(ratingsCount: number): string {
+  return ratingsCount === 1 ? "1 valutazione" : `${ratingsCount} valutazioni`;
+}
+
+function thanksLabel(thanksCount: number): string {
+  return thanksCount === 1 ? "1 ringraziamento" : `${thanksCount} ringraziamenti`;
 }
 
 export function CoordinatorView({
@@ -35,6 +44,8 @@ export function CoordinatorView({
   const [dueDate, setDueDate] = useState(localToday());
   const [notes, setNotes] = useState("");
   const [suggestingForId, setSuggestingForId] = useState<string | null>(null);
+
+  const leaderboard = [...collaborators].sort((a, b) => b.ranking - a.ranking);
 
   function collaboratorName(collaboratorId: string): string {
     return collaborators.find((c) => c.id === collaboratorId)?.name ?? "Collaboratore sconosciuto";
@@ -133,7 +144,7 @@ export function CoordinatorView({
                         <strong>{suggestion.collaborator.name}</strong>
                         <span className="suggestion-ranking">
                           {" "}
-                          ★ {suggestion.collaborator.ranking.toLocaleString("it-IT")}
+                          ★ {formatRanking(suggestion.collaborator.ranking)}
                         </span>
                         <div className="suggestion-meta">
                           {suggestion.collaborator.zone}
@@ -160,6 +171,24 @@ export function CoordinatorView({
             </li>
           ))}
         </ul>
+      </section>
+
+      <section aria-labelledby="leaderboard-title">
+        <h2 id="leaderboard-title">Classifica collaboratori</h2>
+        <ol className="leaderboard">
+          {leaderboard.map((collaborator) => (
+            <li key={collaborator.id} className="leaderboard-row">
+              <div>
+                <strong>{collaborator.name}</strong>
+                <div className="leaderboard-meta">
+                  {ratingsLabel(collaborator.ratingsCount)} ·{" "}
+                  {thanksLabel(collaborator.thanksCount)}
+                </div>
+              </div>
+              <span className="leaderboard-ranking">★ {formatRanking(collaborator.ranking)}</span>
+            </li>
+          ))}
+        </ol>
       </section>
     </div>
   );

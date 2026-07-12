@@ -7,7 +7,14 @@ import {
   type ValCuraStore,
 } from "../store/store";
 import { FAMILY_MEMBERS, PAST_REPORTS } from "../store/seed";
-import { SERVICE_LABELS, STATUS_LABELS, formatDate, localToday, recipientName } from "./format";
+import {
+  SERVICE_LABELS,
+  STATUS_LABELS,
+  formatDate,
+  formatStars,
+  localToday,
+  recipientName,
+} from "./format";
 
 export function FamilyView({
   store,
@@ -22,6 +29,9 @@ export function FamilyView({
   const [service, setService] = useState<ServiceType>("groceries");
   const [dueDate, setDueDate] = useState(localToday());
   const [notes, setNotes] = useState("");
+  const [ratingRequestId, setRatingRequestId] = useState<string | null>(null);
+  const [rating, setRating] = useState(0);
+  const [thanks, setThanks] = useState("");
 
   const member = FAMILY_MEMBERS.find((m) => m.id === memberId) ?? FAMILY_MEMBERS[0];
   const myRequests = requests.filter((r) => r.recipientId === member.recipientId);
@@ -42,6 +52,15 @@ export function FamilyView({
       notes: notes.trim(),
     });
     setNotes("");
+  }
+
+  function handleRate(event: FormEvent<HTMLFormElement>, requestId: string) {
+    event.preventDefault();
+    if (rating === 0) return;
+    store.rateRequest(requestId, rating, thanks);
+    setRatingRequestId(null);
+    setRating(0);
+    setThanks("");
   }
 
   return (
@@ -150,6 +169,70 @@ export function FamilyView({
                 {request.completionNote !== undefined && (
                   <p className="completion-note">“{request.completionNote}”</p>
                 )}
+                {request.review !== undefined && (
+                  <div className="review">
+                    <span className="review-stars" aria-label={`${request.review.rating} su 5`}>
+                      {formatStars(request.review.rating)}
+                    </span>{" "}
+                    La tua valutazione
+                    {request.review.thanks !== undefined && (
+                      <p className="review-thanks">“{request.review.thanks}”</p>
+                    )}
+                  </div>
+                )}
+                {request.status === "completed" &&
+                  request.review === undefined &&
+                  (ratingRequestId === request.id ? (
+                    <form className="rate-form" onSubmit={(e) => handleRate(e, request.id)}>
+                      <div className="star-picker" role="radiogroup" aria-label="Valutazione">
+                        {[1, 2, 3, 4, 5].map((value) => (
+                          <button
+                            key={value}
+                            type="button"
+                            className={value <= rating ? "star selected" : "star"}
+                            role="radio"
+                            aria-checked={value === rating}
+                            aria-label={value === 1 ? "1 stella" : `${value} stelle`}
+                            onClick={() => setRating(value)}
+                          >
+                            {value <= rating ? "★" : "☆"}
+                          </button>
+                        ))}
+                      </div>
+                      <label>
+                        Un grazie a chi se n'è occupato (facoltativo)
+                        <textarea
+                          rows={2}
+                          placeholder="Es. grazie, la mamma era proprio contenta…"
+                          value={thanks}
+                          onChange={(e) => setThanks(e.target.value)}
+                        />
+                      </label>
+                      <div className="complete-actions">
+                        <button type="submit" className="confirm" disabled={rating === 0}>
+                          Invia valutazione
+                        </button>
+                        <button
+                          type="button"
+                          className="cancel"
+                          onClick={() => setRatingRequestId(null)}
+                        >
+                          Annulla
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <button
+                      className="rate-toggle"
+                      onClick={() => {
+                        setRatingRequestId(request.id);
+                        setRating(0);
+                        setThanks("");
+                      }}
+                    >
+                      Valuta l'intervento
+                    </button>
+                  ))}
               </li>
             ))}
           </ul>

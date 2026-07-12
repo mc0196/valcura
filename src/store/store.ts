@@ -23,8 +23,12 @@ export interface Collaborator {
   /** Valley area the collaborator usually covers. */
   zone: Zone;
   availableToday: boolean;
-  /** Average family rating, 1–5 (seeded; fed by family reviews later). */
+  /** Average family rating, 1–5: the running mean of all ratings received. */
   ranking: number;
+  /** How many family ratings the ranking averages over. */
+  ratingsCount: number;
+  /** How many families sent a thank-you along with their rating. */
+  thanksCount: number;
 }
 
 /** A relative living outside the valley who follows a care recipient remotely. */
@@ -47,6 +51,14 @@ export type RequestChannel = (typeof REQUEST_CHANNELS)[number];
 export const REQUEST_STATUSES = ["new", "assigned", "completed"] as const;
 export type RequestStatus = (typeof REQUEST_STATUSES)[number];
 
+/** The family's feedback on a completed intervention: a rating, at most once. */
+export interface Review {
+  /** Whole stars, 1–5. */
+  rating: number;
+  /** Optional thank-you message, shown to the collaborator. */
+  thanks?: string;
+}
+
 /** A service request in the coordinator's queue, from phone call or family app. */
 export interface ServiceRequest {
   id: string;
@@ -64,9 +76,11 @@ export interface ServiceRequest {
   completionNote?: string;
   /** Local calendar date (YYYY-MM-DD) the mission was completed; present once status is "completed". */
   completedAt?: string;
+  /** The family's rating and optional thank-you; only ever set on a completed request. */
+  review?: Review;
 }
 
-export type CreateRequestInput = Omit<ServiceRequest, "id" | "status">;
+export type CreateRequestInput = Omit<ServiceRequest, "id" | "status" | "review">;
 
 export interface AppState {
   role: Role;
@@ -150,6 +164,15 @@ function isRole(value: unknown): value is Role {
   return typeof value === "string" && (ROLES as readonly string[]).includes(value);
 }
 
+function isReview(value: unknown): value is Review {
+  if (typeof value !== "object" || value === null) return false;
+  const review = value as Partial<Review>;
+  return (
+    typeof review.rating === "number" &&
+    (review.thanks === undefined || typeof review.thanks === "string")
+  );
+}
+
 function isServiceRequest(value: unknown): value is ServiceRequest {
   if (typeof value !== "object" || value === null) return false;
   const r = value as Partial<ServiceRequest>;
@@ -163,7 +186,8 @@ function isServiceRequest(value: unknown): value is ServiceRequest {
     (REQUEST_STATUSES as readonly string[]).includes(r.status as string) &&
     (r.assigneeId === undefined || typeof r.assigneeId === "string") &&
     (r.completionNote === undefined || typeof r.completionNote === "string") &&
-    (r.completedAt === undefined || typeof r.completedAt === "string")
+    (r.completedAt === undefined || typeof r.completedAt === "string") &&
+    (r.review === undefined || isReview(r.review))
   );
 }
 
@@ -175,7 +199,9 @@ function isCollaborator(value: unknown): value is Collaborator {
     typeof c.name === "string" &&
     (ZONES as readonly string[]).includes(c.zone as string) &&
     typeof c.availableToday === "boolean" &&
-    typeof c.ranking === "number"
+    typeof c.ranking === "number" &&
+    typeof c.ratingsCount === "number" &&
+    typeof c.thanksCount === "number"
   );
 }
 
@@ -222,6 +248,12 @@ export interface ValCuraStore {
   assignRequest(requestId: string, collaboratorId: string): void;
   /** Moves an "assigned" request to "completed"; the closing note is required. */
   completeRequest(requestId: string, note: string): void;
+  /**
+   * Records the family's rating (1–5 whole stars, optional thank-you) on a
+   * completed request, once, and folds it into the collaborator's ranking as a
+   * running average. A thank-you also bumps the collaborator's thanks count.
+   */
+  rateRequest(requestId: string, rating: number, thanks?: string): void;
   /**
    * The recipient's report for the current week: the interventions completed in
    * the last seven days, oldest first, each with the collaborator's closing note.
@@ -305,6 +337,37 @@ export function createStore(storage: Storage): ValCuraStore {
             ? { ...r, status: "completed", completionNote, completedAt: localToday() }
             : r,
         ),
+      });
+    },
+    rateRequest: (requestId, rating, thanks) => {
+      const request = requireRequest(requestId);
+      if (request.status !== "completed") {
+        throw new Error(`Request ${requestId} is ${request.status}, not completed`);
+      }
+      if (request.review !== undefined) {
+        throw new Error(`Request ${requestId} has already been rated`);
+      }
+      if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+        throw new Error(`Rating must be a whole number of stars between 1 and 5, got ${rating}`);
+      }
+      const thankYou = thanks?.trim();
+      const review: Review =
+        thankYou === undefined || thankYou === "" ? { rating } : { rating, thanks: thankYou };
+      update({
+        ...state,
+        requests: state.requests.map((r) => (r.id === requestId ? { ...r, review } : r)),
+        collaborators: state.collaborators.map((c) => {
+          if (c.id !== request.assigneeId) return c;
+          const count = c.ratingsCount + 1;
+          // Two decimals: enough to order suggestions, free of float noise.
+          const ranking = Math.round(((c.ranking * c.ratingsCount + rating) / count) * 100) / 100;
+          return {
+            ...c,
+            ranking,
+            ratingsCount: count,
+            thanksCount: review.thanks === undefined ? c.thanksCount : c.thanksCount + 1,
+          };
+        }),
       });
     },
     currentReport: (recipientId) => {
