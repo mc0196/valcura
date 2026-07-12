@@ -1,4 +1,4 @@
-import { CARE_RECIPIENTS, seedCollaborators, seedRequests } from "./seed";
+import { CARE_RECIPIENTS, seedCollaborators, seedPlans, seedRequests } from "./seed";
 
 /** Roles that can be impersonated via the demo's role switcher. */
 export const ROLES = ["coordinator", "collaborator", "family", "admin"] as const;
@@ -40,6 +40,50 @@ export interface FamilyMember {
   /** Where the family member lives; makes "from afar" tangible in the demo. */
   city: string;
 }
+
+export const PLAN_IDS = ["basic", "premium", "family-care"] as const;
+export type PlanId = (typeof PLAN_IDS)[number];
+
+/** How often the family receives its periodic report. */
+export const REPORT_FREQUENCIES = ["monthly", "weekly"] as const;
+export type ReportFrequency = (typeof REPORT_FREQUENCIES)[number];
+
+/** A subscription plan: the commercial offer on two axes, volume and report. */
+export interface Plan {
+  id: PlanId;
+  name: string;
+  /** Interventions included per calendar month. */
+  monthlyInterventions: number;
+  /** Drives the family view's current report window. */
+  reportFrequency: ReportFrequency;
+  /** Family Care only: a periodic phone call on top of the weekly report. */
+  includesCall: boolean;
+}
+
+/** The plan catalog, essential to richest. Static, like the recipients roster. */
+export const PLANS: readonly Plan[] = [
+  {
+    id: "basic",
+    name: "Basic",
+    monthlyInterventions: 4,
+    reportFrequency: "monthly",
+    includesCall: false,
+  },
+  {
+    id: "premium",
+    name: "Premium",
+    monthlyInterventions: 8,
+    reportFrequency: "weekly",
+    includesCall: false,
+  },
+  {
+    id: "family-care",
+    name: "Family Care",
+    monthlyInterventions: 12,
+    reportFrequency: "weekly",
+    includesCall: true,
+  },
+];
 
 export const SERVICE_TYPES = ["groceries", "medications", "accompaniment", "errand"] as const;
 export type ServiceType = (typeof SERVICE_TYPES)[number];
@@ -86,6 +130,8 @@ export interface AppState {
   role: Role;
   requests: ServiceRequest[];
   collaborators: Collaborator[];
+  /** Each client's active plan, keyed by recipient id. */
+  planByRecipient: Record<string, PlanId>;
 }
 
 /** One completed intervention as the family's weekly report tells it. */
@@ -100,9 +146,11 @@ export interface ReportEntry {
   note: string;
 }
 
-/** The current week's report: a rolling seven-day window ending today. */
-export interface WeeklyReport {
-  /** First day covered (YYYY-MM-DD), six days before "to". */
+/** The current periodic report; its window follows the client's plan. */
+export interface CurrentReport {
+  /** The plan's report frequency at the time of reading. */
+  frequency: ReportFrequency;
+  /** First day covered (YYYY-MM-DD): six days back when weekly, the 1st of the month when monthly. */
   from: string;
   /** Last day covered (YYYY-MM-DD): today. */
   to: string;
@@ -155,9 +203,19 @@ function localDaysAgo(days: number): string {
   return toLocalIsoDate(d);
 }
 
+/** First day (YYYY-MM-01) of the current local month. */
+function localMonthStart(): string {
+  return `${localToday().slice(0, 7)}-01`;
+}
+
 /** The demo's starting scenario. */
 function seedScenario(): AppState {
-  return { role: "coordinator", requests: seedRequests(), collaborators: seedCollaborators() };
+  return {
+    role: "coordinator",
+    requests: seedRequests(),
+    collaborators: seedCollaborators(),
+    planByRecipient: seedPlans(),
+  };
 }
 
 function isRole(value: unknown): value is Role {
@@ -205,6 +263,16 @@ function isCollaborator(value: unknown): value is Collaborator {
   );
 }
 
+/** Every client must keep a valid plan, or the whole saved state is stale. */
+function isPlanByRecipient(value: unknown): value is Record<string, PlanId> {
+  if (typeof value !== "object" || value === null) return false;
+  const plans = value as Record<string, unknown>;
+  return (
+    CARE_RECIPIENTS.every((r) => plans[r.id] !== undefined) &&
+    Object.values(plans).every((p) => (PLAN_IDS as readonly string[]).includes(p as string))
+  );
+}
+
 /** Reads back the saved state; missing or corrupted data falls back to the seed scenario. */
 function loadState(storage: Storage): AppState {
   const raw = storage.getItem(STATE_KEY);
@@ -212,19 +280,21 @@ function loadState(storage: Storage): AppState {
   try {
     const data: unknown = JSON.parse(raw);
     if (typeof data === "object" && data !== null) {
-      const { role, requests, collaborators } = data as {
+      const { role, requests, collaborators, planByRecipient } = data as {
         role?: unknown;
         requests?: unknown;
         collaborators?: unknown;
+        planByRecipient?: unknown;
       };
       if (
         isRole(role) &&
         Array.isArray(requests) &&
         requests.every(isServiceRequest) &&
         Array.isArray(collaborators) &&
-        collaborators.every(isCollaborator)
+        collaborators.every(isCollaborator) &&
+        isPlanByRecipient(planByRecipient)
       ) {
-        return { role, requests, collaborators };
+        return { role, requests, collaborators, planByRecipient };
       }
     }
   } catch {
@@ -254,11 +324,21 @@ export interface ValCuraStore {
    * running average. A thank-you also bumps the collaborator's thanks count.
    */
   rateRequest(requestId: string, rating: number, thanks?: string): void;
+  /** The client's active plan; report frequency and monthly volume follow it. */
+  planFor(recipientId: string): Plan;
+  /** Switches the client to another plan, effective immediately (report frequency included). */
+  changePlan(recipientId: string, planId: PlanId): void;
   /**
-   * The recipient's report for the current week: the interventions completed in
-   * the last seven days, oldest first, each with the collaborator's closing note.
+   * Interventions booked for the current calendar month (by due date, any
+   * status): what counts against the plan's monthly volume.
    */
-  currentReport(recipientId: string): WeeklyReport;
+  monthlyUsage(recipientId: string): number;
+  /**
+   * The recipient's current periodic report: the interventions completed in the
+   * plan's window (last seven days, or the month so far on a monthly plan),
+   * oldest first, each with the collaborator's closing note.
+   */
+  currentReport(recipientId: string): CurrentReport;
   resetDemo(): void;
   subscribe(listener: () => void): () => void;
 }
@@ -277,6 +357,13 @@ export function createStore(storage: Storage): ValCuraStore {
     const request = state.requests.find((r) => r.id === requestId);
     if (request === undefined) throw new Error(`Unknown request: ${requestId}`);
     return request;
+  }
+
+  function activePlan(recipientId: string): Plan {
+    const planId = state.planByRecipient[recipientId];
+    const plan = PLANS.find((p) => p.id === planId);
+    if (plan === undefined) throw new Error(`Unknown client: ${recipientId}`);
+    return plan;
   }
 
   return {
@@ -370,9 +457,24 @@ export function createStore(storage: Storage): ValCuraStore {
         }),
       });
     },
+    planFor: (recipientId) => activePlan(recipientId),
+    changePlan: (recipientId, planId) => {
+      activePlan(recipientId);
+      if (!(PLAN_IDS as readonly string[]).includes(planId)) {
+        throw new Error(`Unknown plan: ${planId}`);
+      }
+      update({ ...state, planByRecipient: { ...state.planByRecipient, [recipientId]: planId } });
+    },
+    monthlyUsage: (recipientId) => {
+      const month = localToday().slice(0, 7);
+      return state.requests.filter(
+        (r) => r.recipientId === recipientId && r.dueDate.slice(0, 7) === month,
+      ).length;
+    },
     currentReport: (recipientId) => {
+      const { reportFrequency: frequency } = activePlan(recipientId);
       const to = localToday();
-      const from = localDaysAgo(6);
+      const from = frequency === "weekly" ? localDaysAgo(6) : localMonthStart();
       const entries = state.requests
         .filter(
           (r): r is ServiceRequest & { completedAt: string } =>
@@ -392,7 +494,7 @@ export function createStore(storage: Storage): ValCuraStore {
           note: r.completionNote ?? "",
         }))
         .sort((a, b) => a.date.localeCompare(b.date));
-      return { from, to, entries };
+      return { frequency, from, to, entries };
     },
     resetDemo: () => update(seedScenario()),
     subscribe: (listener) => {

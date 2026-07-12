@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { createStore, type Storage } from "./store";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createStore, localToday, type PlanId, type Storage } from "./store";
 
 /** In-memory storage: stands in for localStorage in tests (external boundary). */
 function inMemoryStorage(): Storage {
@@ -10,6 +10,23 @@ function inMemoryStorage(): Storage {
     removeItem: (key) => void data.delete(key),
   };
 }
+
+/** Local calendar date (YYYY-MM-DD) at an offset from today, for month-boundary cases. */
+function localDaysFromToday(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${month}-${day}`;
+}
+
+/** A valid saved plan assignment covering every seeded client. */
+const SAVED_PLANS: Record<string, PlanId> = {
+  "a-maria": "premium",
+  "a-giovanni": "premium",
+  "a-pierina": "basic",
+  "a-ercole": "basic",
+};
 
 describe("ValCura store", () => {
   it("starts from the seed scenario, as coordinator, when nothing is saved", () => {
@@ -845,6 +862,7 @@ describe("ValCura store", () => {
           },
         ],
         collaborators: [],
+        planByRecipient: SAVED_PLANS,
       }),
     );
     const store = createStore(storage);
@@ -902,5 +920,230 @@ describe("ValCura store", () => {
     store.setRole("family");
 
     expect(notifications).toBe(1);
+  });
+
+  it("seeds every client with a plan, spreading the whole catalog across them", () => {
+    const store = createStore(inMemoryStorage());
+
+    const planIds = ["a-maria", "a-giovanni", "a-pierina", "a-ercole"].map(
+      (id) => store.planFor(id).id,
+    );
+
+    expect(planIds).toContain("basic");
+    expect(planIds).toContain("premium");
+    expect(planIds).toContain("family-care");
+  });
+
+  it("describes each plan on the two commercial axes: volume and report", () => {
+    const store = createStore(inMemoryStorage());
+
+    const basic = store.planFor("a-pierina");
+    const premium = store.planFor("a-maria");
+    const familyCare = store.planFor("a-giovanni");
+
+    expect(basic.reportFrequency).toBe("monthly");
+    expect(premium.reportFrequency).toBe("weekly");
+    expect(familyCare.reportFrequency).toBe("weekly");
+    expect(familyCare.includesCall).toBe(true);
+    expect(basic.monthlyInterventions).toBeLessThan(premium.monthlyInterventions);
+    expect(premium.monthlyInterventions).toBeLessThan(familyCare.monthlyInterventions);
+  });
+
+  it("changes a client's plan with immediate effect", () => {
+    const store = createStore(inMemoryStorage());
+
+    store.changePlan("a-maria", "family-care");
+
+    expect(store.planFor("a-maria").id).toBe("family-care");
+  });
+
+  it("keeps a plan change across a reload (new store on the same storage)", () => {
+    const storage = inMemoryStorage();
+    createStore(storage).changePlan("a-pierina", "premium");
+
+    expect(createStore(storage).planFor("a-pierina").id).toBe("premium");
+  });
+
+  it("restores the seed plans on reset", () => {
+    const store = createStore(inMemoryStorage());
+    const seeded = store.planFor("a-maria").id;
+    store.changePlan("a-maria", seeded === "basic" ? "premium" : "basic");
+
+    store.resetDemo();
+
+    expect(store.planFor("a-maria").id).toBe(seeded);
+  });
+
+  it("refuses to change the plan of an unknown client", () => {
+    const store = createStore(inMemoryStorage());
+
+    expect(() => store.changePlan("a-nobody", "premium")).toThrow();
+  });
+
+  it("notifies listeners when a plan changes", () => {
+    const store = createStore(inMemoryStorage());
+    let notifications = 0;
+    store.subscribe(() => notifications++);
+
+    store.changePlan("a-ercole", "premium");
+
+    expect(notifications).toBe(1);
+  });
+
+  it("falls back to the seed when saved state predates plans", () => {
+    const storage = inMemoryStorage();
+    storage.setItem(
+      "valcura:state",
+      JSON.stringify({ role: "family", requests: [], collaborators: [] }),
+    );
+
+    const store = createStore(storage);
+
+    expect(store.getState().role).toBe("coordinator");
+    expect(store.planFor("a-maria").monthlyInterventions).toBeGreaterThan(0);
+  });
+
+  it("counts a booking due this month against the client's monthly usage", () => {
+    const store = createStore(inMemoryStorage());
+    const before = store.monthlyUsage("a-maria");
+
+    store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "phone",
+      dueDate: localToday(),
+      notes: "",
+    });
+
+    expect(store.monthlyUsage("a-maria")).toBe(before + 1);
+  });
+
+  it("keeps counting the intervention through assignment and completion", () => {
+    const store = createStore(inMemoryStorage());
+    const before = store.monthlyUsage("a-maria");
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "phone",
+      dueDate: localToday(),
+      notes: "",
+    });
+
+    store.assignRequest(request.id, "c-luca");
+    store.completeRequest(request.id, "Spesa fatta");
+
+    expect(store.monthlyUsage("a-maria")).toBe(before + 1);
+  });
+
+  it("leaves bookings from other months out of the monthly usage", () => {
+    const store = createStore(inMemoryStorage());
+    const before = store.monthlyUsage("a-maria");
+
+    store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "phone",
+      dueDate: localDaysFromToday(-40),
+      notes: "",
+    });
+
+    expect(store.monthlyUsage("a-maria")).toBe(before);
+  });
+
+  it("keeps other clients' bookings out of a client's usage", () => {
+    const store = createStore(inMemoryStorage());
+    const before = store.monthlyUsage("a-maria");
+
+    store.createRequest({
+      recipientId: "a-ercole",
+      service: "errand",
+      channel: "phone",
+      dueDate: localToday(),
+      notes: "",
+    });
+
+    expect(store.monthlyUsage("a-maria")).toBe(before);
+  });
+
+  describe("report window by plan", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(2026, 6, 18, 10));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("tells a weekly report for a Premium family: seven days ending today", () => {
+      const store = createStore(inMemoryStorage());
+
+      const report = store.currentReport("a-maria");
+
+      expect(report.frequency).toBe("weekly");
+      expect(report.from).toBe("2026-07-12");
+      expect(report.to).toBe("2026-07-18");
+    });
+
+    it("tells a monthly report for a Basic family: the month so far", () => {
+      const store = createStore(inMemoryStorage());
+
+      const report = store.currentReport("a-pierina");
+
+      expect(report.frequency).toBe("monthly");
+      expect(report.from).toBe("2026-07-01");
+      expect(report.to).toBe("2026-07-18");
+    });
+
+    it("keeps interventions from earlier in the month in a Basic family's report", () => {
+      vi.setSystemTime(new Date(2026, 6, 3, 10));
+      const store = createStore(inMemoryStorage());
+      const request = store.createRequest({
+        recipientId: "a-pierina",
+        service: "groceries",
+        channel: "phone",
+        dueDate: "2026-07-03",
+        notes: "",
+      });
+      store.assignRequest(request.id, "c-omar");
+      store.completeRequest(request.id, "Spesa consegnata, tutto bene");
+
+      vi.setSystemTime(new Date(2026, 6, 18, 10));
+      const report = store.currentReport("a-pierina");
+
+      expect(report.entries.map((e) => e.requestId)).toContain(request.id);
+    });
+
+    it("drops those older interventions once the family moves to a weekly plan", () => {
+      vi.setSystemTime(new Date(2026, 6, 3, 10));
+      const store = createStore(inMemoryStorage());
+      const request = store.createRequest({
+        recipientId: "a-pierina",
+        service: "groceries",
+        channel: "phone",
+        dueDate: "2026-07-03",
+        notes: "",
+      });
+      store.assignRequest(request.id, "c-omar");
+      store.completeRequest(request.id, "Spesa consegnata, tutto bene");
+      vi.setSystemTime(new Date(2026, 6, 18, 10));
+
+      store.changePlan("a-pierina", "premium");
+
+      const report = store.currentReport("a-pierina");
+      expect(report.frequency).toBe("weekly");
+      expect(report.entries.map((e) => e.requestId)).not.toContain(request.id);
+    });
+
+    it("turns the report monthly the moment the client moves to Basic", () => {
+      const store = createStore(inMemoryStorage());
+      expect(store.currentReport("a-maria").frequency).toBe("weekly");
+
+      store.changePlan("a-maria", "basic");
+
+      const report = store.currentReport("a-maria");
+      expect(report.frequency).toBe("monthly");
+      expect(report.from).toBe("2026-07-01");
+    });
   });
 });

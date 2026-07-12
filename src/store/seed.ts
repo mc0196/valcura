@@ -1,4 +1,11 @@
-import type { CareRecipient, Collaborator, FamilyMember, PastReport, ServiceRequest } from "./store";
+import type {
+  CareRecipient,
+  Collaborator,
+  FamilyMember,
+  PastReport,
+  PlanId,
+  ServiceRequest,
+} from "./store";
 
 /** Seed data stays in Italian: the demo must feel like a service already alive in the valley. */
 export const CARE_RECIPIENTS: readonly CareRecipient[] = [
@@ -62,6 +69,19 @@ export function seedCollaborators(): Collaborator[] {
       thanksCount: 5,
     },
   ];
+}
+
+/**
+ * Plans spread across the whole catalog, so the Admin list shows variety and
+ * the Basic families prove the monthly report during the pitch.
+ */
+export function seedPlans(): Record<string, PlanId> {
+  return {
+    "a-maria": "premium",
+    "a-giovanni": "family-care",
+    "a-pierina": "basic",
+    "a-ercole": "basic",
+  };
 }
 
 /**

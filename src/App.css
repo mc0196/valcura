@@ -545,6 +545,126 @@ body {
   color: #b45309;
 }
 
+.admin {
+  display: grid;
+  gap: 2.5rem;
+}
+
+.clients {
+  list-style: none;
+  padding: 0;
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.client-card {
+  padding: 0.9rem 1.1rem;
+  background: #fff;
+  border: 1px solid #e2e0d8;
+  border-radius: 0.75rem;
+}
+
+.client-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.client-meta {
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+  color: #55534d;
+}
+
+.plan-picker {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #55534d;
+}
+
+.plan-picker select {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: inherit;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #cfccc2;
+  border-radius: 0.5rem;
+  background: #fff;
+}
+
+.usage {
+  margin-top: 0.75rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.usage-bar {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #eceae3;
+  overflow: hidden;
+}
+
+.usage-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #2e5339;
+}
+
+.usage-fill.over {
+  background: #b45309;
+}
+
+.usage-label {
+  font-size: 0.8rem;
+  color: #55534d;
+}
+
+.plans-table {
+  margin-top: 1rem;
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: #fff;
+  border: 1px solid #e2e0d8;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  font-size: 0.9rem;
+}
+
+.plans-table th,
+.plans-table td {
+  padding: 0.6rem 0.9rem;
+  text-align: left;
+}
+
+.plans-table tbody th,
+.plans-table tbody td {
+  border-top: 1px solid #e2e0d8;
+}
+
+.plans-table thead th {
+  background: #eef3ef;
+  color: #2e5339;
+}
+
+.plans-table tbody th {
+  font-weight: 600;
+  color: #55534d;
+}
+
+.plan-note {
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+  color: #8a815f;
+}
+
 .badge {
   padding: 0.15rem 0.65rem;
   border-radius: 999px;

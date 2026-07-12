@@ -11,6 +11,7 @@ import {
   SERVICE_LABELS,
   STATUS_LABELS,
   formatDate,
+  formatPlanReport,
   formatStars,
   localToday,
   recipientName,
@@ -35,7 +36,9 @@ export function FamilyView({
 
   const member = FAMILY_MEMBERS.find((m) => m.id === memberId) ?? FAMILY_MEMBERS[0];
   const myRequests = requests.filter((r) => r.recipientId === member.recipientId);
+  const plan = store.planFor(member.recipientId);
   const report = store.currentReport(member.recipientId);
+  const weekly = report.frequency === "weekly";
   const pastReports = PAST_REPORTS.filter((p) => p.recipientId === member.recipientId);
 
   function collaboratorName(collaboratorId: string): string {
@@ -77,19 +80,22 @@ export function FamilyView({
       </label>
 
       <section aria-labelledby="report-title">
-        <h2 id="report-title">Il report della settimana</h2>
+        <h2 id="report-title">{weekly ? "Il report della settimana" : "Il report del mese"}</h2>
+        <p className="plan-note">
+          Piano {plan.name} · report {formatPlanReport(plan)}
+        </p>
         <article className="report-card">
           <p className="report-week">
             Dal {formatDate(report.from)} al {formatDate(report.to)}
           </p>
           <p>
-            Cara famiglia, ecco come sta andando la settimana di{" "}
+            Cara famiglia, ecco come sta andando {weekly ? "la settimana" : "il mese"} di{" "}
             {recipientName(member.recipientId)}.
           </p>
           {report.entries.length === 0 ? (
             <p>
-              Non ci sono ancora interventi completati questa settimana: vi racconteremo qui ogni
-              visita, appena conclusa.
+              Non ci sono ancora interventi completati {weekly ? "questa settimana" : "questo mese"}
+              : vi racconteremo qui ogni visita, appena conclusa.
             </p>
           ) : (
             <ul className="report-entries">
