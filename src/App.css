@@ -401,6 +401,150 @@ body {
   color: #2e5339;
 }
 
+.leaderboard {
+  list-style: none;
+  padding: 0;
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.5rem;
+  counter-reset: leaderboard;
+}
+
+.leaderboard-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.9rem;
+  background: #fff;
+  border: 1px solid #e2e0d8;
+  border-radius: 0.5rem;
+}
+
+.leaderboard-row::before {
+  counter-increment: leaderboard;
+  content: counter(leaderboard);
+  font-weight: 700;
+  color: #8a815f;
+  min-width: 1.25rem;
+}
+
+.leaderboard-meta {
+  margin-top: 0.15rem;
+  font-size: 0.8rem;
+  color: #55534d;
+}
+
+.leaderboard-ranking {
+  margin-left: auto;
+  font-weight: 600;
+  color: #b45309;
+  white-space: nowrap;
+}
+
+.recognition {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.9rem 1.1rem;
+  background: #fff;
+  border: 1px solid #e2e0d8;
+  border-radius: 0.75rem;
+}
+
+.recognition-ranking {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #b45309;
+}
+
+.recognition-meta {
+  font-size: 0.9rem;
+  color: #55534d;
+}
+
+.review {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: #55534d;
+}
+
+.review-stars {
+  color: #b45309;
+  letter-spacing: 0.1em;
+}
+
+.review-thanks {
+  margin-top: 0.25rem;
+  font-style: italic;
+}
+
+.rate-toggle {
+  margin-top: 0.65rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.35rem 0.9rem;
+  border: 1px solid #b45309;
+  border-radius: 999px;
+  background: transparent;
+  color: #b45309;
+  cursor: pointer;
+}
+
+.rate-toggle:hover {
+  background: #fdf3e7;
+}
+
+.rate-form {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.rate-form label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #55534d;
+}
+
+.rate-form textarea {
+  font: inherit;
+  font-weight: 400;
+  color: inherit;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #cfccc2;
+  border-radius: 0.5rem;
+  background: #fff;
+  resize: vertical;
+}
+
+.rate-form .confirm:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.star-picker {
+  display: flex;
+  gap: 0.15rem;
+}
+
+.star {
+  font-size: 1.5rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #cfccc2;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.star.selected {
+  color: #b45309;
+}
+
 .badge {
   padding: 0.15rem 0.65rem;
   border-radius: 999px;

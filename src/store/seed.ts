@@ -20,6 +20,8 @@ export const FAMILY_MEMBERS: readonly FamilyMember[] = [
  * Zones, availability and rankings are spread out so the suggestion list visibly
  * reorders during the pitch (zone match, busy collaborator, unavailable one).
  * Deliberately NOT in suggestion order, so tests catch a missing sort.
+ * Luca's low ratings count keeps his average mobile: one family rating during
+ * the pitch visibly swaps him with Franca in the suggestions.
  */
 export function seedCollaborators(): Collaborator[] {
   return [
@@ -29,6 +31,8 @@ export function seedCollaborators(): Collaborator[] {
       zone: "Bassa valle",
       availableToday: false,
       ranking: 4.8,
+      ratingsCount: 25,
+      thanksCount: 18,
     },
     {
       id: "c-sara",
@@ -36,6 +40,8 @@ export function seedCollaborators(): Collaborator[] {
       zone: "Alta valle",
       availableToday: true,
       ranking: 4.9,
+      ratingsCount: 31,
+      thanksCount: 12,
     },
     {
       id: "c-franca",
@@ -43,8 +49,18 @@ export function seedCollaborators(): Collaborator[] {
       zone: "Media valle",
       availableToday: true,
       ranking: 4.5,
+      ratingsCount: 12,
+      thanksCount: 7,
     },
-    { id: "c-luca", name: "Luca Bettoni", zone: "Media valle", availableToday: true, ranking: 4.7 },
+    {
+      id: "c-luca",
+      name: "Luca Bettoni",
+      zone: "Media valle",
+      availableToday: true,
+      ranking: 4.7,
+      ratingsCount: 9,
+      thanksCount: 5,
+    },
   ];
 }
 

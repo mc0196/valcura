@@ -499,6 +499,256 @@ describe("ValCura store", () => {
     expect(notifications).toBe(1);
   });
 
+  it("records the family's rating and thank-you on a completed intervention", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "family",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-luca");
+    store.completeRequest(request.id, "Spesa fatta, tutto bene");
+
+    store.rateRequest(request.id, 5, "  Grazie Luca, la mamma era proprio contenta  ");
+
+    const rated = store.getState().requests.find((r) => r.id === request.id);
+    expect(rated?.review).toEqual({
+      rating: 5,
+      thanks: "Grazie Luca, la mamma era proprio contenta",
+    });
+  });
+
+  it("records a rating without a thank-you when the family leaves none", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "family",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-luca");
+    store.completeRequest(request.id, "Spesa fatta");
+
+    store.rateRequest(request.id, 4, "   ");
+
+    const rated = store.getState().requests.find((r) => r.id === request.id);
+    expect(rated?.review).toEqual({ rating: 4 });
+  });
+
+  it("folds a rating into the collaborator's ranking as a running average", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "family",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-luca");
+    store.completeRequest(request.id, "Spesa fatta");
+
+    store.rateRequest(request.id, 1);
+
+    // Luca is seeded at 4.7 over 9 ratings: (4.7 * 9 + 1) / 10 = 4.33.
+    const luca = store.getState().collaborators.find((c) => c.id === "c-luca");
+    expect(luca?.ranking).toBe(4.33);
+    expect(luca?.ratingsCount).toBe(10);
+  });
+
+  it("counts the thank-you towards the collaborator's recognitions", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "family",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-luca");
+    store.completeRequest(request.id, "Spesa fatta");
+    const thanksBefore = store.getState().collaborators.find((c) => c.id === "c-luca")!.thanksCount;
+
+    store.rateRequest(request.id, 5, "Grazie di cuore");
+
+    const luca = store.getState().collaborators.find((c) => c.id === "c-luca");
+    expect(luca?.thanksCount).toBe(thanksBefore + 1);
+  });
+
+  it("leaves the thanks count alone when the rating comes without a thank-you", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "family",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-luca");
+    store.completeRequest(request.id, "Spesa fatta");
+    const thanksBefore = store.getState().collaborators.find((c) => c.id === "c-luca")!.thanksCount;
+
+    store.rateRequest(request.id, 3);
+
+    expect(store.getState().collaborators.find((c) => c.id === "c-luca")?.thanksCount).toBe(
+      thanksBefore,
+    );
+  });
+
+  it("reorders the suggestions once a rating moves the ranking", () => {
+    const store = createStore(inMemoryStorage());
+    const first = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "family",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    store.assignRequest(first.id, "c-luca");
+    store.completeRequest(first.id, "Spesa fatta");
+    store.rateRequest(first.id, 1);
+    const second = store.createRequest({
+      recipientId: "a-maria",
+      service: "errand",
+      channel: "phone",
+      dueDate: "2026-07-13",
+      notes: "",
+    });
+
+    const ids = store.suggestCollaborators(second.id).map((s) => s.collaborator.id);
+
+    // Luca started ahead of Franca (4.7 vs 4.5); one bad rating drops him to 4.33.
+    expect(ids.indexOf("c-franca")).toBeLessThan(ids.indexOf("c-luca"));
+  });
+
+  it("refuses to rate an intervention that is not completed yet", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "family",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-luca");
+
+    expect(() => store.rateRequest(request.id, 5)).toThrow();
+
+    expect(store.getState().collaborators.find((c) => c.id === "c-luca")?.ratingsCount).toBe(9);
+  });
+
+  it("refuses a second rating, keeping the first review and ranking", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "family",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-luca");
+    store.completeRequest(request.id, "Spesa fatta");
+    store.rateRequest(request.id, 5, "Grazie!");
+
+    expect(() => store.rateRequest(request.id, 1)).toThrow();
+
+    const rated = store.getState().requests.find((r) => r.id === request.id);
+    expect(rated?.review).toEqual({ rating: 5, thanks: "Grazie!" });
+    expect(store.getState().collaborators.find((c) => c.id === "c-luca")?.ratingsCount).toBe(10);
+  });
+
+  it("refuses ratings outside 1–5 whole stars, leaving the ranking untouched", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "family",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-luca");
+    store.completeRequest(request.id, "Spesa fatta");
+
+    expect(() => store.rateRequest(request.id, 0)).toThrow();
+    expect(() => store.rateRequest(request.id, 6)).toThrow();
+    expect(() => store.rateRequest(request.id, 4.5)).toThrow();
+
+    const luca = store.getState().collaborators.find((c) => c.id === "c-luca");
+    expect(luca?.ranking).toBe(4.7);
+    expect(store.getState().requests.find((r) => r.id === request.id)?.review).toBeUndefined();
+  });
+
+  it("keeps the review and the updated ranking across a reload (new store on the same storage)", () => {
+    const storage = inMemoryStorage();
+    const store = createStore(storage);
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "family",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-luca");
+    store.completeRequest(request.id, "Spesa fatta");
+    store.rateRequest(request.id, 1, "Grazie comunque");
+
+    const reloaded = createStore(storage).getState();
+
+    expect(reloaded.requests.find((r) => r.id === request.id)?.review).toEqual({
+      rating: 1,
+      thanks: "Grazie comunque",
+    });
+    expect(reloaded.collaborators.find((c) => c.id === "c-luca")?.ranking).toBe(4.33);
+  });
+
+  it("notifies listeners when a rating lands", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "family",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-luca");
+    store.completeRequest(request.id, "Spesa fatta");
+    let notifications = 0;
+    store.subscribe(() => notifications++);
+
+    store.rateRequest(request.id, 5);
+
+    expect(notifications).toBe(1);
+  });
+
+  it("falls back to the seed when saved collaborators predate ratings counters", () => {
+    const storage = inMemoryStorage();
+    storage.setItem(
+      "valcura:state",
+      JSON.stringify({
+        role: "family",
+        requests: [],
+        collaborators: [
+          {
+            id: "c-old",
+            name: "Vecchio Collaboratore",
+            zone: "Media valle",
+            availableToday: true,
+            ranking: 4.2,
+          },
+        ],
+      }),
+    );
+
+    const store = createStore(storage);
+
+    expect(store.getState().role).toBe("coordinator");
+    expect(
+      store.getState().collaborators.every((c) => typeof c.ratingsCount === "number"),
+    ).toBe(true);
+  });
+
   it("tells the current week's report from completed interventions, note and collaborator included", () => {
     const store = createStore(inMemoryStorage());
     const request = store.createRequest({

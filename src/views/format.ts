@@ -33,3 +33,13 @@ export function formatDate(isoDate: string): string {
 export function recipientName(recipientId: string): string {
   return CARE_RECIPIENTS.find((r) => r.id === recipientId)?.name ?? "Assistito sconosciuto";
 }
+
+/** Ranking with one decimal ("4,7"): the demo shows averages, not float noise. */
+export function formatRanking(ranking: number): string {
+  return ranking.toLocaleString("it-IT", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
+/** A 1–5 rating as filled and empty stars, e.g. "★★★★☆". */
+export function formatStars(rating: number): string {
+  return "★".repeat(rating) + "☆".repeat(5 - rating);
+}

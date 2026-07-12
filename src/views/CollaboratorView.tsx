@@ -1,6 +1,18 @@
 import { useState, type FormEvent } from "react";
 import type { Collaborator, ServiceRequest, ValCuraStore } from "../store/store";
-import { SERVICE_LABELS, formatDate, localToday, recipientName } from "./format";
+import {
+  SERVICE_LABELS,
+  formatDate,
+  formatRanking,
+  formatStars,
+  localToday,
+  recipientName,
+} from "./format";
+
+function thanksLabel(thanksCount: number): string {
+  if (thanksCount === 0) return "ancora nessun ringraziamento";
+  return thanksCount === 1 ? "1 famiglia ti ringrazia" : `${thanksCount} famiglie ti ringraziano`;
+}
 
 export function CollaboratorView({
   store,
@@ -16,6 +28,7 @@ export function CollaboratorView({
   const [note, setNote] = useState("");
 
   const today = localToday();
+  const me = collaborators.find((c) => c.id === collaboratorId);
   const mine = requests.filter((r) => r.assigneeId === collaboratorId);
   const missions = mine
     .filter((r) => r.status === "assigned")
@@ -42,6 +55,18 @@ export function CollaboratorView({
           ))}
         </select>
       </label>
+
+      {me !== undefined && (
+        <section aria-labelledby="recognition-title">
+          <h2 id="recognition-title">I tuoi riconoscimenti</h2>
+          <div className="recognition">
+            <span className="recognition-ranking">★ {formatRanking(me.ranking)}</span>
+            <span className="recognition-meta">
+              media di {me.ratingsCount} valutazioni · {thanksLabel(me.thanksCount)}
+            </span>
+          </div>
+        </section>
+      )}
 
       <section aria-labelledby="missions-title">
         <h2 id="missions-title">Le mie missioni</h2>
@@ -113,6 +138,17 @@ export function CollaboratorView({
                 </div>
                 {mission.completionNote !== undefined && (
                   <p className="completion-note">“{mission.completionNote}”</p>
+                )}
+                {mission.review !== undefined && (
+                  <div className="review">
+                    <span className="review-stars" aria-label={`${mission.review.rating} su 5`}>
+                      {formatStars(mission.review.rating)}
+                    </span>{" "}
+                    La famiglia ti ha valutato
+                    {mission.review.thanks !== undefined && (
+                      <p className="review-thanks">“{mission.review.thanks}”</p>
+                    )}
+                  </div>
                 )}
               </li>
             ))}
