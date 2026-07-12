@@ -252,7 +252,7 @@ export function FamilyView({
             {pastReports.map((past) => (
               <li key={past.id}>
                 <details className="report-card">
-                  <summary>Settimana {past.weekLabel}</summary>
+                  <summary>{past.periodLabel}</summary>
                   {past.paragraphs.map((paragraph, i) => (
                     <p key={i}>{paragraph}</p>
                   ))}

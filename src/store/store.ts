@@ -158,12 +158,15 @@ export interface CurrentReport {
   entries: ReportEntry[];
 }
 
-/** A past weekly report, pre-written and immutable: the archive the family browses. */
+/** A past periodic report, pre-written and immutable: the archive the family browses. */
 export interface PastReport {
   id: string;
   recipientId: string;
-  /** Human label of the covered week, e.g. "29 giugno – 5 luglio 2026". */
-  weekLabel: string;
+  /**
+   * Human label of the covered period, matching the client's plan frequency:
+   * "Settimana 29 giugno – 5 luglio 2026" or "Giugno 2026".
+   */
+  periodLabel: string;
   /** Curated paragraphs, already in the report's warm tone. */
   paragraphs: string[];
 }
