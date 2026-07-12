@@ -31,7 +31,7 @@ const browser = await chromium.launch({ executablePath });
 - Role switching via the topbar buttons (`nav >> text=Coordinatore` etc.); state is shared across roles.
 - Coordinator: fill `.request-form`, submit `.request-form .primary`, read the queue back via `.queue .request-card` (name in `strong`, `.request-meta`, `.badge`).
 - Persistence: reload and re-read the queue.
-- "Reset demo" restores the seed scenario (3 requests, one per status).
+- "Reset demo" restores the seed scenario (5 requests covering every status, both channels, one already rated).
 
 ## Gotchas
 

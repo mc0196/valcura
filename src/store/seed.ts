@@ -86,13 +86,14 @@ export function seedPlans(): Record<string, PlanId> {
 
 /**
  * The report archive, pre-written in the report's warm tone. Static content:
- * past weeks don't change, so they live outside the mutable state.
+ * past periods don't change, so they live outside the mutable state. Labels
+ * follow each client's plan: weekly for Premium/Family Care, monthly for Basic.
  */
 export const PAST_REPORTS: readonly PastReport[] = [
   {
     id: "rep-maria-1",
     recipientId: "a-maria",
-    weekLabel: "29 giugno – 5 luglio 2026",
+    periodLabel: "Settimana 29 giugno – 5 luglio 2026",
     paragraphs: [
       "Cara famiglia, è stata una settimana serena per la sig.ra Maria. Martedì Franca è passata per la spesa: al mercato hanno scelto insieme le albicocche per la marmellata, e Maria le ha promesso un vasetto.",
       "Giovedì Luca l'ha accompagnata dalla parrucchiera in paese. Al ritorno si sono fermati al belvedere: Maria dice che la valle, vista da lì, «è ancora quella di quando era ragazza».",
@@ -101,7 +102,7 @@ export const PAST_REPORTS: readonly PastReport[] = [
   {
     id: "rep-maria-2",
     recipientId: "a-maria",
-    weekLabel: "22 – 28 giugno 2026",
+    periodLabel: "Settimana 22 – 28 giugno 2026",
     paragraphs: [
       "Cara famiglia, settimana tranquilla e in compagnia. Lunedì la consegna dei farmaci è arrivata puntuale, e Franca ne ha approfittato per due chiacchiere in cucina davanti al caffè.",
       "Sabato Maria ha voluto sistemare i gerani sul balcone: Luca le ha portato il terriccio e ora, parole sue, «il balcone è il più bello della via».",
@@ -110,28 +111,30 @@ export const PAST_REPORTS: readonly PastReport[] = [
   {
     id: "rep-giovanni-1",
     recipientId: "a-giovanni",
-    weekLabel: "29 giugno – 5 luglio 2026",
+    periodLabel: "Settimana 29 giugno – 5 luglio 2026",
     paragraphs: [
       "Cara famiglia, il sig. Giovanni sta bene. Mercoledì Sara è salita con i farmaci e la ricetta nuova del dott. Marchesi; ne hanno approfittato per una passeggiata fino alla fontana.",
       "Giovanni continua con le parole crociate ogni sera: ci ha sfidato a trovare «un fiume di tre lettere». Ha vinto lui.",
+      "A giovedì per la telefonata del vostro piano Family Care: il sig. Giovanni ha già pronti gli aneddoti della settimana.",
     ],
   },
   {
     id: "rep-pierina-1",
     recipientId: "a-pierina",
-    weekLabel: "29 giugno – 5 luglio 2026",
+    periodLabel: "Giugno 2026",
     paragraphs: [
-      "Cara famiglia, la sig.ra Pierina vi saluta. Venerdì Omar ha fatto la spesa seguendo la lista sul frigo, senza dimenticare i biscotti «quelli buoni, non quelli in offerta».",
-      "Domenica pomeriggio ha ricevuto la visita della vicina e insieme hanno ascoltato la messa alla radio. Ci ha chiesto di dirvi che il rosmarino sul davanzale è fiorito.",
+      "Cara famiglia, ecco il racconto del mese della sig.ra Pierina. La spesa del venerdì con Omar è ormai un rito: lista appesa al frigo e biscotti «quelli buoni, non quelli in offerta» mai dimenticati.",
+      "A metà mese Omar l'ha accompagnata in farmacia per le scorte dell'estate; al ritorno hanno salutato mezza via, perché la sig.ra Pierina conosce tutti.",
+      "Le domeniche sono passate in compagnia della vicina, con la messa alla radio. Ci ha chiesto di dirvi che il rosmarino sul davanzale è fiorito.",
     ],
   },
   {
     id: "rep-ercole-1",
     recipientId: "a-ercole",
-    weekLabel: "29 giugno – 5 luglio 2026",
+    periodLabel: "Giugno 2026",
     paragraphs: [
-      "Cara famiglia, il sig. Ercole è in gran forma. Martedì Luca l'ha aiutato a ritirare il pacco in posta e al ritorno si sono fermati al bar per «il caffè dei campioni».",
-      "Ercole ha ripreso a sistemare l'orto: dice che quest'anno i pomodori «faranno invidia a tutta la media valle». Noi gli crediamo.",
+      "Cara famiglia, un mese in gran forma per il sig. Ercole. Con Luca è diventato un appuntamento fisso: commissioni in paese il martedì e, al ritorno, «il caffè dei campioni» al bar della piazza.",
+      "A giugno ha rimesso in sesto l'orto: Franca gli ha portato le canne per i pomodori, che quest'anno — parole sue — «faranno invidia a tutta la media valle». Noi gli crediamo.",
     ],
   },
 ];
@@ -145,7 +148,12 @@ function isoDaysFromToday(days: number): string {
   return `${d.getFullYear()}-${month}-${day}`;
 }
 
-/** One request per status, so the queue demonstrates the whole lifecycle at first glance. */
+/**
+ * The whole lifecycle at first glance: every status, both entry channels among
+ * the pending requests, and one intervention already rated with a thank-you.
+ * Maria's completed accompaniment stays unrated on purpose: it lets the pitch
+ * demo a rating without first walking the full lifecycle.
+ */
 export function seedRequests(): ServiceRequest[] {
   return [
     {
@@ -155,6 +163,15 @@ export function seedRequests(): ServiceRequest[] {
       channel: "phone",
       dueDate: isoDaysFromToday(1),
       notes: "Ritirare la ricetta dal dott. Marchesi prima della farmacia",
+      status: "new",
+    },
+    {
+      id: "r-seed-4",
+      recipientId: "a-pierina",
+      service: "accompaniment",
+      channel: "family",
+      dueDate: isoDaysFromToday(2),
+      notes: "Visita dal medico di base alle 10, l'appuntamento è già prenotato — grazie!",
       status: "new",
     },
     {
@@ -178,6 +195,20 @@ export function seedRequests(): ServiceRequest[] {
       assigneeId: "c-sara",
       completionNote: "Visita andata bene, la sig.ra Maria è serena. Prossimo controllo tra sei mesi.",
       completedAt: isoDaysFromToday(-2),
+    },
+    {
+      id: "r-seed-5",
+      recipientId: "a-ercole",
+      service: "errand",
+      channel: "phone",
+      dueDate: isoDaysFromToday(-3),
+      notes: "Ritirare il pacco in posta con la delega firmata",
+      status: "completed",
+      assigneeId: "c-franca",
+      completionNote:
+        "Pacco ritirato e consegnato. Il sig. Ercole mi ha mostrato l'orto: i pomodori promettono davvero bene.",
+      completedAt: isoDaysFromToday(-3),
+      review: { rating: 5, thanks: "Grazie Franca, papà ci ha raccontato tutto al telefono: era contentissimo." },
     },
   ];
 }

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStore, localToday, type PlanId, type Storage } from "./store";
+import { CARE_RECIPIENTS, FAMILY_MEMBERS, PAST_REPORTS } from "./seed";
 
 /** In-memory storage: stands in for localStorage in tests (external boundary). */
 function inMemoryStorage(): Storage {
@@ -195,6 +196,36 @@ describe("ValCura store", () => {
 
     expect(channels).toContain("phone");
     expect(channels).toContain("family");
+  });
+
+  it("seeds a still-pending request from the family channel, visible in the queue", () => {
+    const store = createStore(inMemoryStorage());
+
+    const pendingFromFamily = store
+      .getState()
+      .requests.filter((r) => r.status === "new" && r.channel === "family");
+
+    expect(pendingFromFamily.length).toBeGreaterThan(0);
+  });
+
+  it("seeds an intervention already rated with a thank-you, so recognitions start alive", () => {
+    const store = createStore(inMemoryStorage());
+
+    const rated = store.getState().requests.filter((r) => r.review !== undefined);
+
+    expect(rated.length).toBeGreaterThan(0);
+    expect(rated.every((r) => r.status === "completed")).toBe(true);
+    expect(rated.some((r) => r.review?.thanks !== undefined)).toBe(true);
+  });
+
+  it("keeps a completed intervention unrated in the seed, so the pitch can rate it live", () => {
+    const store = createStore(inMemoryStorage());
+
+    const ratable = store
+      .getState()
+      .requests.filter((r) => r.status === "completed" && r.review === undefined);
+
+    expect(ratable.length).toBeGreaterThan(0);
   });
 
   it("falls back to the seed when saved requests predate the origin channel", () => {
@@ -804,8 +835,9 @@ describe("ValCura store", () => {
 
     const report = store.currentReport("a-ercole");
 
-    expect(report.entries).toHaveLength(1);
-    expect(report.entries[0].date).toBe(report.to);
+    // The seed may already put an Ercole intervention in the window; check the fresh one.
+    const fresh = report.entries.find((e) => e.requestId === request.id);
+    expect(fresh?.date).toBe(report.to);
   });
 
   it("keeps other recipients' interventions out of the report", () => {
@@ -932,6 +964,16 @@ describe("ValCura store", () => {
     expect(planIds).toContain("basic");
     expect(planIds).toContain("premium");
     expect(planIds).toContain("family-care");
+  });
+
+  it("seeds every care recipient with a family member, a plan and a report to browse", () => {
+    const store = createStore(inMemoryStorage());
+
+    for (const recipient of CARE_RECIPIENTS) {
+      expect(FAMILY_MEMBERS.some((m) => m.recipientId === recipient.id)).toBe(true);
+      expect(store.planFor(recipient.id).monthlyInterventions).toBeGreaterThan(0);
+      expect(PAST_REPORTS.some((p) => p.recipientId === recipient.id)).toBe(true);
+    }
   });
 
   it("describes each plan on the two commercial axes: volume and report", () => {
