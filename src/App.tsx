@@ -3,6 +3,7 @@ import { ROLES, type Role, type ValCuraStore } from "./store/store";
 import { CoordinatorView } from "./views/CoordinatorView";
 import { CollaboratorView } from "./views/CollaboratorView";
 import { FamilyView } from "./views/FamilyView";
+import { AdminView } from "./views/AdminView";
 import "./App.css";
 
 // UI copy stays in Italian: the demo is pitched to the founding partners.
@@ -11,10 +12,6 @@ const LABELS: Record<Role, string> = {
   collaborator: "Collaboratore",
   family: "Famiglia",
   admin: "Admin",
-};
-
-const DESCRIPTIONS: Record<Exclude<Role, "coordinator" | "collaborator" | "family">, string> = {
-  admin: "Qui l'admin vedrà abbonamenti, collaboratori e impostazioni della piattaforma.",
 };
 
 export function App({ store }: { store: ValCuraStore }) {
@@ -56,10 +53,7 @@ export function App({ store }: { store: ValCuraStore }) {
         ) : state.role === "family" ? (
           <FamilyView store={store} requests={state.requests} collaborators={state.collaborators} />
         ) : (
-          <>
-            <h2>Vista {LABELS[state.role]}</h2>
-            <p>{DESCRIPTIONS[state.role]}</p>
-          </>
+          <AdminView store={store} />
         )}
       </main>
     </div>
