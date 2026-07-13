@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import {
   SERVICE_TYPES,
   type Collaborator,
+  type CollaboratorSuggestion,
   type ServiceRequest,
   type ServiceType,
   type ValCuraStore,
@@ -29,6 +30,29 @@ function ratingsLabel(ratingsCount: number): string {
 
 function thanksLabel(thanksCount: number): string {
   return thanksCount === 1 ? "1 ringraziamento" : `${thanksCount} ringraziamenti`;
+}
+
+const TEAM_ROLE_LABELS = { primary: "primario", backup: "backup" } as const;
+
+function availabilityLabel(suggestion: CollaboratorSuggestion): string {
+  if (!suggestion.collaborator.availableToday) return "non disponibile oggi";
+  return suggestion.availableForRequest ? "disponibile oggi" : "già impegnato in quella data";
+}
+
+/** Continuity at a glance: whom the top suggestion belongs to, or that it broke. */
+function ContinuityNote({ top }: { top: CollaboratorSuggestion | undefined }) {
+  const role = top !== undefined && top.availableForRequest ? top.teamRole : undefined;
+  if (role === "primary") {
+    return <p className="team-note primary">Suggerito il collaboratore primario della famiglia.</p>;
+  }
+  if (role === "backup") {
+    return (
+      <p className="team-note backup">Primario non disponibile: suggerito un backup.</p>
+    );
+  }
+  return (
+    <p className="team-note manual">Né primario né backup disponibili — scegli manualmente.</p>
+  );
 }
 
 export function CoordinatorView({
@@ -143,38 +167,48 @@ export function CoordinatorView({
                   {suggestingForId === request.id ? "Chiudi suggerimenti" : "Scegli collaboratore"}
                 </button>
               )}
-              {request.status === "new" && suggestingForId === request.id && (
-                <ul className="suggestions">
-                  {store.suggestCollaborators(request.id).map((suggestion) => (
-                    <li key={suggestion.collaborator.id} className="suggestion">
-                      <div>
-                        <strong>{suggestion.collaborator.name}</strong>
-                        <span className="suggestion-ranking">
-                          {" "}
-                          ★ {formatRanking(suggestion.collaborator.ranking)}
-                        </span>
-                        <div className="suggestion-meta">
-                          {suggestion.collaborator.zone}
-                          {suggestion.inRecipientZone && " (zona dell'assistito)"} ·{" "}
-                          {suggestion.collaborator.availableToday
-                            ? "disponibile oggi"
-                            : "non disponibile oggi"}{" "}
-                          · {loadLabel(suggestion.load)}
-                        </div>
-                      </div>
-                      <button
-                        className="primary assign"
-                        onClick={() => {
-                          store.assignRequest(request.id, suggestion.collaborator.id);
-                          setSuggestingForId(null);
-                        }}
-                      >
-                        Assegna
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              {request.status === "new" &&
+                suggestingForId === request.id &&
+                (() => {
+                  const suggestions = store.suggestCollaborators(request.id);
+                  return (
+                    <>
+                      <ContinuityNote top={suggestions[0]} />
+                      <ul className="suggestions">
+                        {suggestions.map((suggestion) => (
+                          <li key={suggestion.collaborator.id} className="suggestion">
+                            <div>
+                              <strong>{suggestion.collaborator.name}</strong>
+                              {suggestion.teamRole !== undefined && (
+                                <span className={`badge team-${suggestion.teamRole}`}>
+                                  {TEAM_ROLE_LABELS[suggestion.teamRole]}
+                                </span>
+                              )}
+                              <span className="suggestion-ranking">
+                                {" "}
+                                ★ {formatRanking(suggestion.collaborator.ranking)}
+                              </span>
+                              <div className="suggestion-meta">
+                                {suggestion.collaborator.zone}
+                                {suggestion.inRecipientZone && " (zona dell'assistito)"} ·{" "}
+                                {availabilityLabel(suggestion)} · {loadLabel(suggestion.load)}
+                              </div>
+                            </div>
+                            <button
+                              className="primary assign"
+                              onClick={() => {
+                                store.assignRequest(request.id, suggestion.collaborator.id);
+                                setSuggestingForId(null);
+                              }}
+                            >
+                              Assegna
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  );
+                })()}
             </li>
           ))}
         </ul>

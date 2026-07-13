@@ -1,8 +1,76 @@
-import { PLANS, type PlanId, type ValCuraStore } from "../store/store";
+import { PLANS, type Collaborator, type PlanId, type ValCuraStore } from "../store/store";
 import { CARE_RECIPIENTS, FAMILY_MEMBERS } from "../store/seed";
 import { formatPlanReport, usageLabel } from "./format";
 
-export function AdminView({ store }: { store: ValCuraStore }) {
+/** The family's primary and backup pickers; duplicates are filtered, not offered. */
+function CareTeamEditor({
+  store,
+  familyId,
+  collaborators,
+}: {
+  store: ValCuraStore;
+  familyId: string;
+  collaborators: Collaborator[];
+}) {
+  const team = store.careTeamFor(familyId);
+  const backupAt = (slot: number): string => team.backupIds[slot] ?? "";
+
+  function apply(primaryId: string, backupIds: string[]) {
+    store.setCareTeam(familyId, {
+      primaryId,
+      backupIds: [...new Set(backupIds.filter((id) => id !== "" && id !== primaryId))],
+    });
+  }
+
+  return (
+    <div className="care-team">
+      <span className="care-team-caption">Collaboratori di fiducia</span>
+      <label className="team-picker">
+        Primario
+        <select
+          value={team.primaryId}
+          onChange={(e) => apply(e.target.value, team.backupIds)}
+        >
+          {collaborators.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {[0, 1].map((slot) => (
+        <label key={slot} className="team-picker">
+          Backup {slot + 1}
+          <select
+            value={backupAt(slot)}
+            onChange={(e) => {
+              const next = [backupAt(0), backupAt(1)];
+              next[slot] = e.target.value;
+              apply(team.primaryId, next);
+            }}
+          >
+            <option value="">Nessuno</option>
+            {collaborators
+              .filter((c) => c.id !== team.primaryId && c.id !== backupAt(1 - slot))
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+          </select>
+        </label>
+      ))}
+    </div>
+  );
+}
+
+export function AdminView({
+  store,
+  collaborators,
+}: {
+  store: ValCuraStore;
+  collaborators: Collaborator[];
+}) {
   return (
     <div className="admin">
       <section aria-labelledby="clients-title">
@@ -42,6 +110,9 @@ export function AdminView({ store }: { store: ValCuraStore }) {
                     </select>
                   </label>
                 </div>
+                {family !== undefined && (
+                  <CareTeamEditor store={store} familyId={family.id} collaborators={collaborators} />
+                )}
                 <div className="usage">
                   <div
                     className="usage-bar"
