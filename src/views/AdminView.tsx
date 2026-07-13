@@ -1,6 +1,23 @@
+import { useState } from "react";
 import { PLANS, type Collaborator, type PlanId, type ValCuraStore } from "../store/store";
 import { CARE_RECIPIENTS, FAMILY_MEMBERS } from "../store/seed";
-import { formatPlanReport, usageLabel } from "./format";
+import { MISSION_TIERS, TIER_FEES } from "../store/compensation";
+import {
+  TIER_LABELS,
+  formatEuro,
+  formatPlanReport,
+  localDaysAgo,
+  localMonthStart,
+  localToday,
+  usageLabel,
+} from "./format";
+
+/** The periods the Admin can total compensation over, ending today. */
+const PERIODS = {
+  month: { label: "Questo mese", from: localMonthStart },
+  week: { label: "Ultimi 7 giorni", from: () => localDaysAgo(6) },
+} as const;
+type PeriodId = keyof typeof PERIODS;
 
 /** The family's primary and backup pickers; duplicates are filtered, not offered. */
 function CareTeamEditor({
@@ -71,6 +88,9 @@ export function AdminView({
   store: ValCuraStore;
   collaborators: Collaborator[];
 }) {
+  const [periodId, setPeriodId] = useState<PeriodId>("month");
+  const summary = store.compensationSummary(PERIODS[periodId].from(), localToday());
+
   return (
     <div className="admin">
       <section aria-labelledby="clients-title">
@@ -135,6 +155,45 @@ export function AdminView({
             );
           })}
         </ul>
+      </section>
+
+      <section aria-labelledby="compensation-title">
+        <h2 id="compensation-title">Compensi ai collaboratori</h2>
+        <label className="period-picker">
+          Periodo
+          <select value={periodId} onChange={(e) => setPeriodId(e.target.value as PeriodId)}>
+            {Object.entries(PERIODS).map(([id, period]) => (
+              <option key={id} value={id}>
+                {period.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <table className="plans-table compensation-table">
+          <thead>
+            <tr>
+              <th scope="col">Fascia</th>
+              <th scope="col">Missioni completate</th>
+              <th scope="col">Compenso</th>
+            </tr>
+          </thead>
+          <tbody>
+            {MISSION_TIERS.map((tier) => (
+              <tr key={tier}>
+                <th scope="row">
+                  {TIER_LABELS[tier]} ({formatEuro(TIER_FEES[tier])})
+                </th>
+                <td>{summary.missionsByTier[tier]}</td>
+                <td>{formatEuro(summary.feesByTier[tier])}</td>
+              </tr>
+            ))}
+            <tr className="compensation-total">
+              <th scope="row">Totale da pagare</th>
+              <td>{summary.totalMissions}</td>
+              <td>{formatEuro(summary.totalFees)}</td>
+            </tr>
+          </tbody>
+        </table>
       </section>
 
       <section aria-labelledby="plans-title">

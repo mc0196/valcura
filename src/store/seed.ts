@@ -7,6 +7,7 @@ import type {
   PlanId,
   ServiceRequest,
 } from "./store";
+import { missionFee } from "./compensation";
 
 /** Seed data stays in Italian: the demo must feel like a service already alive in the valley. */
 export const CARE_RECIPIENTS: readonly CareRecipient[] = [
@@ -211,6 +212,7 @@ export function seedRequests(): ServiceRequest[] {
       assigneeId: "c-sara",
       completionNote: "Visita andata bene, la sig.ra Maria è serena. Prossimo controllo tra sei mesi.",
       completedAt: isoDaysFromToday(-2),
+      fee: missionFee("accompaniment"),
     },
     {
       id: "r-seed-5",
@@ -224,6 +226,7 @@ export function seedRequests(): ServiceRequest[] {
       completionNote:
         "Pacco ritirato e consegnato. Il sig. Ercole mi ha mostrato l'orto: i pomodori promettono davvero bene.",
       completedAt: isoDaysFromToday(-3),
+      fee: missionFee("errand"),
       review: { rating: 5, thanks: "Grazie Franca, papà ci ha raccontato tutto al telefono: era contentissimo." },
     },
   ];

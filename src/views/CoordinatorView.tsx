@@ -8,11 +8,14 @@ import {
   type ValCuraStore,
 } from "../store/store";
 import { CARE_RECIPIENTS } from "../store/seed";
+import { missionFee, missionTier } from "../store/compensation";
 import {
   CHANNEL_LABELS,
   SERVICE_LABELS,
   STATUS_LABELS,
+  TIER_LABELS,
   formatDate,
+  formatEuro,
   formatRanking,
   localToday,
   recipientName,
@@ -112,6 +115,10 @@ export function CoordinatorView({
                 </option>
               ))}
             </select>
+            <span className="plan-usage">
+              Missione {TIER_LABELS[missionTier(service)].toLowerCase()} · compenso{" "}
+              {formatEuro(missionFee(service))}
+            </span>
           </label>
           <label>
             Data desiderata

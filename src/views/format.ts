@@ -1,5 +1,6 @@
 import type { Plan, ReportFrequency, RequestChannel, RequestStatus, ServiceType } from "../store/store";
 import { CARE_RECIPIENTS } from "../store/seed";
+import type { MissionTier } from "../store/compensation";
 
 // UI copy stays in Italian: the demo is pitched to the founding partners.
 export const SERVICE_LABELS: Record<ServiceType, string> = {
@@ -37,7 +38,18 @@ export function usageLabel(used: number, included: number): string {
   return used > included ? `${base} — oltre il piano` : base;
 }
 
-export { localToday } from "../store/store";
+export const TIER_LABELS: Record<MissionTier, string> = {
+  short: "Breve",
+  medium: "Media",
+  long: "Lunga",
+};
+
+/** Whole-euro amount in Italian style, e.g. "15 €". */
+export function formatEuro(amount: number): string {
+  return `${amount.toLocaleString("it-IT")} €`;
+}
+
+export { localDaysAgo, localMonthStart, localToday } from "../store/store";
 
 export function formatDate(isoDate: string): string {
   return new Date(`${isoDate}T00:00:00`).toLocaleDateString("it-IT", {
