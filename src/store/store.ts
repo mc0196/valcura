@@ -219,6 +219,8 @@ export interface CollaboratorSuggestion {
 export interface CompensationSummary {
   /** Completed missions in the period, counted per tier. */
   missionsByTier: Record<MissionTier, number>;
+  /** EUR owed per tier, summed from the fees saved at completion time. */
+  feesByTier: Record<MissionTier, number>;
   totalMissions: number;
   /** EUR owed to collaborators for the period's completed missions. */
   totalFees: number;
@@ -590,12 +592,16 @@ export function createStore(storage: Storage): ValCuraStore {
           (collaboratorId === undefined || r.assigneeId === collaboratorId),
       );
       const missionsByTier: Record<MissionTier, number> = { short: 0, medium: 0, long: 0 };
+      const feesByTier: Record<MissionTier, number> = { short: 0, medium: 0, long: 0 };
       let totalFees = 0;
       for (const request of completed) {
-        missionsByTier[missionTier(request.service)] += 1;
-        totalFees += request.fee ?? missionFee(request.service);
+        const tier = missionTier(request.service);
+        const fee = request.fee ?? missionFee(request.service);
+        missionsByTier[tier] += 1;
+        feesByTier[tier] += fee;
+        totalFees += fee;
       }
-      return { missionsByTier, totalMissions: completed.length, totalFees };
+      return { missionsByTier, feesByTier, totalMissions: completed.length, totalFees };
     },
     rateRequest: (requestId, rating, thanks) => {
       const request = requireRequest(requestId);

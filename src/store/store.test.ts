@@ -751,6 +751,7 @@ describe("ValCura store", () => {
     // Seed completions are days old: only today's groceries (15) and medications (10) count.
     expect(summary.totalMissions).toBe(2);
     expect(summary.missionsByTier).toEqual({ short: 1, medium: 1, long: 0 });
+    expect(summary.feesByTier).toEqual({ short: 10, medium: 15, long: 0 });
     expect(summary.totalFees).toBe(25);
   });
 
@@ -762,6 +763,7 @@ describe("ValCura store", () => {
     // The seed completed an accompaniment (25) and an errand (10) earlier this week.
     expect(summary.totalMissions).toBe(2);
     expect(summary.missionsByTier).toEqual({ short: 1, medium: 0, long: 1 });
+    expect(summary.feesByTier).toEqual({ short: 10, medium: 0, long: 25 });
     expect(summary.totalFees).toBe(35);
   });
 
