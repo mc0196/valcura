@@ -6,6 +6,7 @@ import {
   seedRequests,
   seedTeams,
 } from "./seed";
+import { missionFee, missionTier, type MissionTier } from "./compensation";
 
 /** Roles that can be impersonated via the demo's role switcher. */
 export const ROLES = ["coordinator", "collaborator", "family", "admin"] as const;
@@ -140,11 +141,19 @@ export interface ServiceRequest {
   completionNote?: string;
   /** Local calendar date (YYYY-MM-DD) the mission was completed; present once status is "completed". */
   completedAt?: string;
+  /**
+   * Collaborator's compensation in EUR, frozen at completion time so later fee
+   * changes don't rewrite history; present once status is "completed".
+   */
+  fee?: number;
   /** The family's rating and optional thank-you; only ever set on a completed request. */
   review?: Review;
 }
 
-export type CreateRequestInput = Omit<ServiceRequest, "id" | "status" | "review">;
+export type CreateRequestInput = Omit<
+  ServiceRequest,
+  "id" | "status" | "review" | "completionNote" | "completedAt" | "fee"
+>;
 
 export interface AppState {
   role: Role;
@@ -206,6 +215,15 @@ export interface CollaboratorSuggestion {
   availableForRequest: boolean;
 }
 
+/** Completed missions and compensation owed for a period, told from saved fees. */
+export interface CompensationSummary {
+  /** Completed missions in the period, counted per tier. */
+  missionsByTier: Record<MissionTier, number>;
+  totalMissions: number;
+  /** EUR owed to collaborators for the period's completed missions. */
+  totalFees: number;
+}
+
 /** Persistence boundary: localStorage in the app, an in-memory storage in tests. */
 export interface Storage {
   getItem(key: string): string | null;
@@ -226,14 +244,15 @@ export function localToday(): string {
   return toLocalIsoDate(new Date());
 }
 
-function localDaysAgo(days: number): string {
+/** Local calendar date (YYYY-MM-DD) a number of days back from today. */
+export function localDaysAgo(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days);
   return toLocalIsoDate(d);
 }
 
 /** First day (YYYY-MM-01) of the current local month. */
-function localMonthStart(): string {
+export function localMonthStart(): string {
   return `${localToday().slice(0, 7)}-01`;
 }
 
@@ -275,6 +294,8 @@ function isServiceRequest(value: unknown): value is ServiceRequest {
     (r.assigneeId === undefined || typeof r.assigneeId === "string") &&
     (r.completionNote === undefined || typeof r.completionNote === "string") &&
     (r.completedAt === undefined || typeof r.completedAt === "string") &&
+    // The fee travels with the completion; a completed mission without one is stale.
+    (r.status === "completed" ? typeof r.fee === "number" : r.fee === undefined) &&
     (r.review === undefined || isReview(r.review))
   );
 }
@@ -383,8 +404,18 @@ export interface ValCuraStore {
   setCareTeam(familyId: string, team: CareTeam): void;
   /** Moves a "new" request to "assigned" with the chosen collaborator. */
   assignRequest(requestId: string, collaboratorId: string): void;
-  /** Moves an "assigned" request to "completed"; the closing note is required. */
+  /**
+   * Moves an "assigned" request to "completed"; the closing note is required.
+   * The collaborator's fee is computed from the mission's tier and saved with
+   * the request, frozen at completion time.
+   */
   completeRequest(requestId: string, note: string): void;
+  /**
+   * Completed missions and compensation owed over [from, to] (local dates,
+   * inclusive), from the fees saved at completion. Optionally for a single
+   * collaborator: their earned compensation for the period.
+   */
+  compensationSummary(from: string, to: string, collaboratorId?: string): CompensationSummary;
   /**
    * Records the family's rating (1–5 whole stars, optional thank-you) on a
    * completed request, once, and folds it into the collaborator's ranking as a
@@ -538,10 +569,33 @@ export function createStore(storage: Storage): ValCuraStore {
         ...state,
         requests: state.requests.map((r) =>
           r.id === requestId
-            ? { ...r, status: "completed", completionNote, completedAt: localToday() }
+            ? {
+                ...r,
+                status: "completed",
+                completionNote,
+                completedAt: localToday(),
+                fee: missionFee(r.service),
+              }
             : r,
         ),
       });
+    },
+    compensationSummary: (from, to, collaboratorId) => {
+      const completed = state.requests.filter(
+        (r) =>
+          r.status === "completed" &&
+          r.completedAt !== undefined &&
+          r.completedAt >= from &&
+          r.completedAt <= to &&
+          (collaboratorId === undefined || r.assigneeId === collaboratorId),
+      );
+      const missionsByTier: Record<MissionTier, number> = { short: 0, medium: 0, long: 0 };
+      let totalFees = 0;
+      for (const request of completed) {
+        missionsByTier[missionTier(request.service)] += 1;
+        totalFees += request.fee ?? missionFee(request.service);
+      }
+      return { missionsByTier, totalMissions: completed.length, totalFees };
     },
     rateRequest: (requestId, rating, thanks) => {
       const request = requireRequest(requestId);

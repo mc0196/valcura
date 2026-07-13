@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createStore, localToday, type PlanId, type Storage } from "./store";
+import { createStore, localDaysAgo, localToday, type PlanId, type Storage } from "./store";
 import { CARE_RECIPIENTS, FAMILY_MEMBERS, PAST_REPORTS, seedCollaborators, seedTeams } from "./seed";
 
 /** In-memory storage: stands in for localStorage in tests (external boundary). */
@@ -634,6 +634,203 @@ describe("ValCura store", () => {
     expect(reloaded?.completionNote).toBe("Pacco ritirato in posta e consegnato");
   });
 
+  it("saves the tier's fee with the mission the moment it is completed", () => {
+    const store = createStore(inMemoryStorage());
+    const feeByService = {
+      medications: 10,
+      errand: 10,
+      groceries: 15,
+      accompaniment: 25,
+    } as const;
+
+    for (const [service, expectedFee] of Object.entries(feeByService)) {
+      const request = store.createRequest({
+        recipientId: "a-maria",
+        service: service as keyof typeof feeByService,
+        channel: "phone",
+        dueDate: "2026-07-12",
+        notes: "",
+      });
+      store.assignRequest(request.id, "c-luca");
+      store.completeRequest(request.id, "Fatto, tutto bene");
+
+      expect(store.getState().requests.find((r) => r.id === request.id)?.fee).toBe(expectedFee);
+    }
+  });
+
+  it("leaves the fee unset until the mission is completed", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "phone",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-luca");
+
+    expect(store.getState().requests.find((r) => r.id === request.id)?.fee).toBeUndefined();
+  });
+
+  it("seeds every completed mission with its saved fee", () => {
+    const store = createStore(inMemoryStorage());
+
+    const completed = store.getState().requests.filter((r) => r.status === "completed");
+
+    expect(completed.length).toBeGreaterThan(0);
+    expect(completed.every((r) => typeof r.fee === "number" && r.fee > 0)).toBe(true);
+  });
+
+  it("keeps the fee across a reload (new store on the same storage)", () => {
+    const storage = inMemoryStorage();
+    const store = createStore(storage);
+    const request = store.createRequest({
+      recipientId: "a-ercole",
+      service: "accompaniment",
+      channel: "phone",
+      dueDate: "2026-07-15",
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-franca");
+    store.completeRequest(request.id, "Visita fatta, tutto bene");
+
+    const reloaded = createStore(storage).getState().requests.find((r) => r.id === request.id);
+
+    expect(reloaded?.fee).toBe(25);
+  });
+
+  it("falls back to the seed when a saved completed mission has no fee", () => {
+    const storage = inMemoryStorage();
+    storage.setItem(
+      "valcura:state",
+      JSON.stringify({
+        role: "family",
+        requests: [
+          {
+            id: "r-old",
+            recipientId: "a-maria",
+            service: "groceries",
+            channel: "phone",
+            dueDate: "2026-07-01",
+            notes: "",
+            status: "completed",
+            assigneeId: "c-luca",
+            completionNote: "Completata prima dei compensi",
+            completedAt: "2026-07-01",
+          },
+        ],
+        collaborators: seedCollaborators(),
+        planByRecipient: SAVED_PLANS,
+        teamByFamily: seedTeams(),
+      }),
+    );
+
+    const store = createStore(storage);
+
+    expect(store.getState().role).toBe("coordinator");
+    expect(store.getState().requests.some((r) => r.id === "r-old")).toBe(false);
+  });
+
+  it("sums the day's completed missions by tier into the compensation summary", () => {
+    const store = createStore(inMemoryStorage());
+    const today = localToday();
+    for (const service of ["groceries", "medications"] as const) {
+      const request = store.createRequest({
+        recipientId: "a-maria",
+        service,
+        channel: "phone",
+        dueDate: today,
+        notes: "",
+      });
+      store.assignRequest(request.id, "c-luca");
+      store.completeRequest(request.id, "Fatto, tutto bene");
+    }
+
+    const summary = store.compensationSummary(today, today);
+
+    // Seed completions are days old: only today's groceries (15) and medications (10) count.
+    expect(summary.totalMissions).toBe(2);
+    expect(summary.missionsByTier).toEqual({ short: 1, medium: 1, long: 0 });
+    expect(summary.totalFees).toBe(25);
+  });
+
+  it("tells the week's compensation from the seed's saved fees", () => {
+    const store = createStore(inMemoryStorage());
+
+    const summary = store.compensationSummary(localDaysAgo(6), localToday());
+
+    // The seed completed an accompaniment (25) and an errand (10) earlier this week.
+    expect(summary.totalMissions).toBe(2);
+    expect(summary.missionsByTier).toEqual({ short: 1, medium: 0, long: 1 });
+    expect(summary.totalFees).toBe(35);
+  });
+
+  it("leaves open missions out of the compensation summary", () => {
+    const store = createStore(inMemoryStorage());
+    const today = localToday();
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "accompaniment",
+      channel: "phone",
+      dueDate: today,
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-luca");
+
+    const summary = store.compensationSummary(today, today);
+
+    expect(summary.totalMissions).toBe(0);
+    expect(summary.totalFees).toBe(0);
+  });
+
+  it("narrows the compensation summary to a single collaborator's earnings", () => {
+    const store = createStore(inMemoryStorage());
+    const today = localToday();
+    const forLuca = store.createRequest({
+      recipientId: "a-maria",
+      service: "accompaniment",
+      channel: "phone",
+      dueDate: today,
+      notes: "",
+    });
+    store.assignRequest(forLuca.id, "c-luca");
+    store.completeRequest(forLuca.id, "Fatto");
+    const forSara = store.createRequest({
+      recipientId: "a-giovanni",
+      service: "medications",
+      channel: "phone",
+      dueDate: today,
+      notes: "",
+    });
+    store.assignRequest(forSara.id, "c-sara");
+    store.completeRequest(forSara.id, "Fatto");
+
+    const luca = store.compensationSummary(today, today, "c-luca");
+
+    expect(luca.totalMissions).toBe(1);
+    expect(luca.missionsByTier).toEqual({ short: 0, medium: 0, long: 1 });
+    expect(luca.totalFees).toBe(25);
+  });
+
+  it("restores the seed compensation on reset", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "accompaniment",
+      channel: "phone",
+      dueDate: localToday(),
+      notes: "",
+    });
+    store.assignRequest(request.id, "c-luca");
+    store.completeRequest(request.id, "Fatto");
+
+    store.resetDemo();
+
+    const summary = store.compensationSummary(localDaysAgo(6), localToday());
+    expect(summary.totalMissions).toBe(2);
+    expect(summary.totalFees).toBe(35);
+  });
+
   it("frees the collaborator's load once their mission is completed", () => {
     const store = createStore(inMemoryStorage());
     const first = store.createRequest({
@@ -1049,6 +1246,7 @@ describe("ValCura store", () => {
             assigneeId: "c-luca",
             completionNote: "Una spesa di sei mesi fa",
             completedAt: "2026-01-01",
+            fee: 15,
           },
         ],
         collaborators: seedCollaborators(),
