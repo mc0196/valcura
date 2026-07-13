@@ -1,5 +1,6 @@
 import type {
   CareRecipient,
+  CareTeam,
   Collaborator,
   FamilyMember,
   PastReport,
@@ -28,7 +29,8 @@ export const FAMILY_MEMBERS: readonly FamilyMember[] = [
  * reorders during the pitch (zone match, busy collaborator, unavailable one).
  * Deliberately NOT in suggestion order, so tests catch a missing sort.
  * Luca's low ratings count keeps his average mobile: one family rating during
- * the pitch visibly swaps him with Franca in the suggestions.
+ * the pitch visibly moves him in the leaderboard (care teams pin the top of the
+ * suggestions, so the swap shows there only outside the family's team).
  */
 export function seedCollaborators(): Collaborator[] {
   return [
@@ -81,6 +83,20 @@ export function seedPlans(): Record<string, PlanId> {
     "a-giovanni": "family-care",
     "a-pierina": "basic",
     "a-ercole": "basic",
+  };
+}
+
+/**
+ * Care teams match the past reports' narrative: the primary is the face the
+ * family already knows. Carla's primary is Omar, off today — her pending
+ * request lets the pitch show the fallback to the backups.
+ */
+export function seedTeams(): Record<string, CareTeam> {
+  return {
+    "f-anna": { primaryId: "c-franca", backupIds: ["c-luca"] },
+    "f-marco": { primaryId: "c-sara", backupIds: ["c-luca"] },
+    "f-carla": { primaryId: "c-omar", backupIds: ["c-franca", "c-luca"] },
+    "f-elio": { primaryId: "c-luca", backupIds: ["c-franca"] },
   };
 }
 
