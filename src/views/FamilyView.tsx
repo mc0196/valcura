@@ -82,7 +82,8 @@ export function FamilyView({
       <section aria-labelledby="report-title">
         <h2 id="report-title">{weekly ? "Il report della settimana" : "Il report del mese"}</h2>
         <p className="plan-note">
-          Piano {plan.name} · report {formatPlanReport(plan)}
+          Piano {plan.name} · {plan.monthlyInterventions} interventi al mese · report{" "}
+          {formatPlanReport(plan)}
         </p>
         <article className="report-card">
           <p className="report-week">

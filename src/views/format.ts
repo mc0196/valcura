@@ -31,6 +31,12 @@ export function formatPlanReport(plan: Plan): string {
   return plan.includesCall ? `${frequency} + telefonata` : frequency;
 }
 
+/** Month's consumption against the plan, e.g. "2 di 8 interventi questo mese". */
+export function usageLabel(used: number, included: number): string {
+  const base = `${used} di ${included} interventi questo mese`;
+  return used > included ? `${base} — oltre il piano` : base;
+}
+
 export { localToday } from "../store/store";
 
 export function formatDate(isoDate: string): string {
