@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStore, localToday, type PlanId, type Storage } from "./store";
-import { CARE_RECIPIENTS, FAMILY_MEMBERS, PAST_REPORTS } from "./seed";
+import { CARE_RECIPIENTS, FAMILY_MEMBERS, PAST_REPORTS, seedCollaborators, seedTeams } from "./seed";
 
 /** In-memory storage: stands in for localStorage in tests (external boundary). */
 function inMemoryStorage(): Storage {
@@ -294,6 +294,8 @@ describe("ValCura store", () => {
 
   it("prefers collaborators covering the recipient's zone among the available ones", () => {
     const store = createStore(inMemoryStorage());
+    // Neutralize Maria's care team (off-duty primary, no backups): the generic pool decides.
+    store.setCareTeam("f-anna", { primaryId: "c-omar", backupIds: [] });
     const request = store.createRequest({
       recipientId: "a-maria",
       service: "groceries",
@@ -309,8 +311,10 @@ describe("ValCura store", () => {
     expect(ids.indexOf("c-sara")).toBeGreaterThan(ids.indexOf("c-franca"));
   });
 
-  it("breaks ties between equally placed collaborators by higher ranking", () => {
+  it("breaks ties in the generic pool by higher ranking", () => {
     const store = createStore(inMemoryStorage());
+    // Neutralize Maria's care team (off-duty primary, no backups): the generic pool decides.
+    store.setCareTeam("f-anna", { primaryId: "c-omar", backupIds: [] });
     const request = store.createRequest({
       recipientId: "a-maria",
       service: "groceries",
@@ -323,6 +327,105 @@ describe("ValCura store", () => {
 
     // Luca and Franca both cover Maria's zone, are free and unloaded; Luca ranks 4.7 vs 4.5.
     expect(ids.indexOf("c-luca")).toBeLessThan(ids.indexOf("c-franca"));
+  });
+
+  it("opens the list with the family's primary, then the backups, then everyone else", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "phone",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+
+    const suggestions = store.suggestCollaborators(request.id);
+
+    // Anna's team: Franca primary, Luca backup; Luca outranks Franca but continuity wins.
+    expect(suggestions.map((s) => s.collaborator.id)).toEqual([
+      "c-franca",
+      "c-luca",
+      "c-sara",
+      "c-omar",
+    ]);
+    expect(suggestions[0].teamRole).toBe("primary");
+    expect(suggestions[1].teamRole).toBe("backup");
+    expect(suggestions[2].teamRole).toBeUndefined();
+  });
+
+  it("falls back to the backups, in order, when the primary is off today", () => {
+    const store = createStore(inMemoryStorage());
+    const request = store.createRequest({
+      recipientId: "a-pierina",
+      service: "groceries",
+      channel: "phone",
+      dueDate: "2026-07-16",
+      notes: "",
+    });
+
+    const suggestions = store.suggestCollaborators(request.id);
+
+    // Carla's team: Omar primary but off today, backups Franca then Luca.
+    expect(suggestions.map((s) => s.collaborator.id)).toEqual([
+      "c-franca",
+      "c-luca",
+      "c-sara",
+      "c-omar",
+    ]);
+    expect(suggestions[0].teamRole).toBe("backup");
+    expect(suggestions.at(-1)?.teamRole).toBe("primary");
+    expect(suggestions.at(-1)?.availableForRequest).toBe(false);
+  });
+
+  it("skips a team member already booked on the request's date", () => {
+    const store = createStore(inMemoryStorage());
+    const other = store.createRequest({
+      recipientId: "a-ercole",
+      service: "errand",
+      channel: "phone",
+      dueDate: "2026-07-14",
+      notes: "",
+    });
+    store.assignRequest(other.id, "c-franca");
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "phone",
+      dueDate: "2026-07-14",
+      notes: "",
+    });
+
+    const suggestions = store.suggestCollaborators(request.id);
+
+    // Franca (Anna's primary) is booked on the 14th: Luca the backup opens the list.
+    expect(suggestions[0].collaborator.id).toBe("c-luca");
+    const franca = suggestions.find((s) => s.collaborator.id === "c-franca");
+    expect(franca?.availableForRequest).toBe(false);
+    expect(franca?.teamRole).toBe("primary");
+  });
+
+  it("keeps the primary first on a different date, even when booked elsewhere", () => {
+    const store = createStore(inMemoryStorage());
+    const other = store.createRequest({
+      recipientId: "a-ercole",
+      service: "errand",
+      channel: "phone",
+      dueDate: "2026-07-14",
+      notes: "",
+    });
+    store.assignRequest(other.id, "c-franca");
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "phone",
+      dueDate: "2026-07-15",
+      notes: "",
+    });
+
+    const suggestions = store.suggestCollaborators(request.id);
+
+    expect(suggestions[0].collaborator.id).toBe("c-franca");
+    expect(suggestions[0].teamRole).toBe("primary");
   });
 
   it("assigns a new request to the chosen collaborator, moving it to \"assigned\"", () => {
@@ -359,7 +462,7 @@ describe("ValCura store", () => {
     expect(assigned?.assigneeId).toBe("c-luca");
   });
 
-  it("prefers a lighter load: a fresh assignment pushes the collaborator down next time", () => {
+  it("books a collaborator once per date: an assignment that day pushes them down", () => {
     const store = createStore(inMemoryStorage());
     const first = store.createRequest({
       recipientId: "a-maria",
@@ -379,10 +482,36 @@ describe("ValCura store", () => {
 
     const suggestions = store.suggestCollaborators(second.id);
 
-    // Luca outranks Franca in the same zone, but now carries an open assignment.
+    // Luca is Elio's primary, but he is already booked on the 12th: Franca steps in.
     const ids = suggestions.map((s) => s.collaborator.id);
     expect(ids.indexOf("c-franca")).toBeLessThan(ids.indexOf("c-luca"));
     expect(suggestions.find((s) => s.collaborator.id === "c-luca")?.load).toBe(1);
+  });
+
+  it("prefers a lighter load among otherwise equal collaborators in the generic pool", () => {
+    const store = createStore(inMemoryStorage());
+    // Neutralize Maria's care team (off-duty primary, no backups): the generic pool decides.
+    store.setCareTeam("f-anna", { primaryId: "c-omar", backupIds: [] });
+    const first = store.createRequest({
+      recipientId: "a-ercole",
+      service: "errand",
+      channel: "phone",
+      dueDate: "2026-07-13",
+      notes: "",
+    });
+    store.assignRequest(first.id, "c-luca");
+    const second = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "phone",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+
+    const ids = store.suggestCollaborators(second.id).map((s) => s.collaborator.id);
+
+    // Both free on the 12th and in zone; Luca outranks Franca but carries an open assignment.
+    expect(ids.indexOf("c-franca")).toBeLessThan(ids.indexOf("c-luca"));
   });
 
   it("refuses to assign to an unknown collaborator, leaving the request new", () => {
@@ -645,8 +774,10 @@ describe("ValCura store", () => {
     );
   });
 
-  it("reorders the suggestions once a rating moves the ranking", () => {
+  it("reorders the generic pool once a rating moves the ranking", () => {
     const store = createStore(inMemoryStorage());
+    // Neutralize Maria's care team (off-duty primary, no backups): the generic pool decides.
+    store.setCareTeam("f-anna", { primaryId: "c-omar", backupIds: [] });
     const first = store.createRequest({
       recipientId: "a-maria",
       service: "groceries",
@@ -669,6 +800,33 @@ describe("ValCura store", () => {
 
     // Luca started ahead of Franca (4.7 vs 4.5); one bad rating drops him to 4.33.
     expect(ids.indexOf("c-franca")).toBeLessThan(ids.indexOf("c-luca"));
+  });
+
+  it("keeps the family's primary first even when a low rating drops their ranking", () => {
+    const store = createStore(inMemoryStorage());
+    const first = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "family",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    store.assignRequest(first.id, "c-franca");
+    store.completeRequest(first.id, "Spesa fatta");
+    store.rateRequest(first.id, 1);
+    const second = store.createRequest({
+      recipientId: "a-maria",
+      service: "errand",
+      channel: "phone",
+      dueDate: "2026-07-13",
+      notes: "",
+    });
+
+    const suggestions = store.suggestCollaborators(second.id);
+
+    // Franca drops to 4.23, well below Luca's 4.7 — continuity still puts her first.
+    expect(suggestions[0].collaborator.id).toBe("c-franca");
+    expect(suggestions[0].teamRole).toBe("primary");
   });
 
   it("refuses to rate an intervention that is not completed yet", () => {
@@ -893,8 +1051,9 @@ describe("ValCura store", () => {
             completedAt: "2026-01-01",
           },
         ],
-        collaborators: [],
+        collaborators: seedCollaborators(),
         planByRecipient: SAVED_PLANS,
+        teamByFamily: seedTeams(),
       }),
     );
     const store = createStore(storage);
@@ -1043,6 +1202,127 @@ describe("ValCura store", () => {
 
     expect(store.getState().role).toBe("coordinator");
     expect(store.planFor("a-maria").monthlyInterventions).toBeGreaterThan(0);
+  });
+
+  it("seeds every family with a care team of existing collaborators", () => {
+    const store = createStore(inMemoryStorage());
+    const collaboratorIds = store.getState().collaborators.map((c) => c.id);
+
+    for (const member of FAMILY_MEMBERS) {
+      const team = store.careTeamFor(member.id);
+      expect(collaboratorIds).toContain(team.primaryId);
+      expect(team.backupIds.length).toBeGreaterThanOrEqual(1);
+      expect(team.backupIds.length).toBeLessThanOrEqual(2);
+      for (const backupId of team.backupIds) {
+        expect(collaboratorIds).toContain(backupId);
+        expect(backupId).not.toBe(team.primaryId);
+      }
+    }
+  });
+
+  it("refuses to tell the care team of an unknown family", () => {
+    const store = createStore(inMemoryStorage());
+
+    expect(() => store.careTeamFor("f-nobody")).toThrow();
+  });
+
+  it("reconfigures a family's care team with immediate effect on the suggestions", () => {
+    const store = createStore(inMemoryStorage());
+
+    store.setCareTeam("f-anna", { primaryId: "c-sara", backupIds: ["c-luca", "c-franca"] });
+
+    expect(store.careTeamFor("f-anna")).toEqual({
+      primaryId: "c-sara",
+      backupIds: ["c-luca", "c-franca"],
+    });
+    const request = store.createRequest({
+      recipientId: "a-maria",
+      service: "groceries",
+      channel: "phone",
+      dueDate: "2026-07-12",
+      notes: "",
+    });
+    const suggestions = store.suggestCollaborators(request.id);
+    expect(suggestions[0].collaborator.id).toBe("c-sara");
+    expect(suggestions[0].teamRole).toBe("primary");
+  });
+
+  it("refuses an invalid care team, keeping the configured one", () => {
+    const store = createStore(inMemoryStorage());
+    const seeded = store.careTeamFor("f-anna");
+
+    // Three backups, unknown members, overlaps and unknown family are all rejected.
+    expect(() =>
+      store.setCareTeam("f-anna", {
+        primaryId: "c-sara",
+        backupIds: ["c-luca", "c-franca", "c-omar"],
+      }),
+    ).toThrow();
+    expect(() =>
+      store.setCareTeam("f-anna", { primaryId: "c-nobody", backupIds: [] }),
+    ).toThrow();
+    expect(() =>
+      store.setCareTeam("f-anna", { primaryId: "c-sara", backupIds: ["c-nobody"] }),
+    ).toThrow();
+    expect(() =>
+      store.setCareTeam("f-anna", { primaryId: "c-sara", backupIds: ["c-sara"] }),
+    ).toThrow();
+    expect(() =>
+      store.setCareTeam("f-anna", { primaryId: "c-sara", backupIds: ["c-luca", "c-luca"] }),
+    ).toThrow();
+    expect(() =>
+      store.setCareTeam("f-nobody", { primaryId: "c-sara", backupIds: [] }),
+    ).toThrow();
+
+    expect(store.careTeamFor("f-anna")).toEqual(seeded);
+  });
+
+  it("keeps a care team change across a reload (new store on the same storage)", () => {
+    const storage = inMemoryStorage();
+    createStore(storage).setCareTeam("f-elio", { primaryId: "c-franca", backupIds: ["c-omar"] });
+
+    expect(createStore(storage).careTeamFor("f-elio")).toEqual({
+      primaryId: "c-franca",
+      backupIds: ["c-omar"],
+    });
+  });
+
+  it("restores the seed care teams on reset", () => {
+    const store = createStore(inMemoryStorage());
+    const seeded = store.careTeamFor("f-carla");
+    store.setCareTeam("f-carla", { primaryId: "c-sara", backupIds: [] });
+
+    store.resetDemo();
+
+    expect(store.careTeamFor("f-carla")).toEqual(seeded);
+  });
+
+  it("notifies listeners when a care team changes", () => {
+    const store = createStore(inMemoryStorage());
+    let notifications = 0;
+    store.subscribe(() => notifications++);
+
+    store.setCareTeam("f-marco", { primaryId: "c-sara", backupIds: ["c-omar"] });
+
+    expect(notifications).toBe(1);
+  });
+
+  it("falls back to the seed when saved state predates care teams", () => {
+    const storage = inMemoryStorage();
+    storage.setItem(
+      "valcura:state",
+      JSON.stringify({
+        role: "family",
+        requests: [],
+        collaborators: seedCollaborators(),
+        planByRecipient: SAVED_PLANS,
+      }),
+    );
+
+    const store = createStore(storage);
+
+    expect(store.getState().role).toBe("coordinator");
+    expect(store.careTeamFor("f-anna").primaryId).toBeTypeOf("string");
   });
 
   it("counts a booking due this month against the client's monthly usage", () => {

@@ -1,4 +1,11 @@
-import { CARE_RECIPIENTS, seedCollaborators, seedPlans, seedRequests } from "./seed";
+import {
+  CARE_RECIPIENTS,
+  FAMILY_MEMBERS,
+  seedCollaborators,
+  seedPlans,
+  seedRequests,
+  seedTeams,
+} from "./seed";
 
 /** Roles that can be impersonated via the demo's role switcher. */
 export const ROLES = ["coordinator", "collaborator", "family", "admin"] as const;
@@ -39,6 +46,19 @@ export interface FamilyMember {
   recipientId: string;
   /** Where the family member lives; makes "from afar" tangible in the demo. */
   city: string;
+}
+
+export const MAX_BACKUP_COLLABORATORS = 2;
+
+/**
+ * The collaborators a family relies on: continuity is the default, so the
+ * primary is suggested first and the backups step in when life happens.
+ */
+export interface CareTeam {
+  /** The collaborator the family knows best; suggested first while available. */
+  primaryId: string;
+  /** Fallbacks in preference order when the primary is unavailable; at most two. */
+  backupIds: string[];
 }
 
 export const PLAN_IDS = ["basic", "premium", "family-care"] as const;
@@ -132,6 +152,8 @@ export interface AppState {
   collaborators: Collaborator[];
   /** Each client's active plan, keyed by recipient id. */
   planByRecipient: Record<string, PlanId>;
+  /** Each family's care team (primary + backups), keyed by family member id. */
+  teamByFamily: Record<string, CareTeam>;
 }
 
 /** One completed intervention as the family's weekly report tells it. */
@@ -178,6 +200,10 @@ export interface CollaboratorSuggestion {
   load: number;
   /** Whether the collaborator covers the zone the recipient lives in. */
   inRecipientZone: boolean;
+  /** The collaborator's place in the requesting family's care team, if any. */
+  teamRole?: "primary" | "backup";
+  /** Free to take this request: active today and not already booked on its date. */
+  availableForRequest: boolean;
 }
 
 /** Persistence boundary: localStorage in the app, an in-memory storage in tests. */
@@ -218,6 +244,7 @@ function seedScenario(): AppState {
     requests: seedRequests(),
     collaborators: seedCollaborators(),
     planByRecipient: seedPlans(),
+    teamByFamily: seedTeams(),
   };
 }
 
@@ -276,6 +303,32 @@ function isPlanByRecipient(value: unknown): value is Record<string, PlanId> {
   );
 }
 
+/** A valid care team only references existing collaborators, without overlaps. */
+function isCareTeam(value: unknown, collaboratorIds: readonly string[]): value is CareTeam {
+  if (typeof value !== "object" || value === null) return false;
+  const team = value as Partial<CareTeam>;
+  return (
+    typeof team.primaryId === "string" &&
+    collaboratorIds.includes(team.primaryId) &&
+    Array.isArray(team.backupIds) &&
+    team.backupIds.length <= MAX_BACKUP_COLLABORATORS &&
+    team.backupIds.every(
+      (id) => typeof id === "string" && collaboratorIds.includes(id) && id !== team.primaryId,
+    ) &&
+    new Set(team.backupIds).size === team.backupIds.length
+  );
+}
+
+/** Every family must keep a valid care team, or the whole saved state is stale. */
+function isTeamByFamily(
+  value: unknown,
+  collaboratorIds: readonly string[],
+): value is Record<string, CareTeam> {
+  if (typeof value !== "object" || value === null) return false;
+  const teams = value as Record<string, unknown>;
+  return FAMILY_MEMBERS.every((m) => isCareTeam(teams[m.id], collaboratorIds));
+}
+
 /** Reads back the saved state; missing or corrupted data falls back to the seed scenario. */
 function loadState(storage: Storage): AppState {
   const raw = storage.getItem(STATE_KEY);
@@ -283,11 +336,12 @@ function loadState(storage: Storage): AppState {
   try {
     const data: unknown = JSON.parse(raw);
     if (typeof data === "object" && data !== null) {
-      const { role, requests, collaborators, planByRecipient } = data as {
+      const { role, requests, collaborators, planByRecipient, teamByFamily } = data as {
         role?: unknown;
         requests?: unknown;
         collaborators?: unknown;
         planByRecipient?: unknown;
+        teamByFamily?: unknown;
       };
       if (
         isRole(role) &&
@@ -295,9 +349,13 @@ function loadState(storage: Storage): AppState {
         requests.every(isServiceRequest) &&
         Array.isArray(collaborators) &&
         collaborators.every(isCollaborator) &&
-        isPlanByRecipient(planByRecipient)
+        isPlanByRecipient(planByRecipient) &&
+        isTeamByFamily(
+          teamByFamily,
+          collaborators.map((c) => c.id),
+        )
       ) {
-        return { role, requests, collaborators, planByRecipient };
+        return { role, requests, collaborators, planByRecipient, teamByFamily };
       }
     }
   } catch {
@@ -312,11 +370,17 @@ export interface ValCuraStore {
   /** Registers a request in the queue (status "new", newest first) and returns it. */
   createRequest(input: CreateRequestInput): ServiceRequest;
   /**
-   * Collaborators proposed for a request, best match first. The order rewards
-   * availability today, covering the recipient's zone, a low current load and a
-   * high ranking — in that priority. The coordinator always makes the final call.
+   * Collaborators proposed for a request. Continuity first: the family's
+   * primary opens the list while free for the request's date, then the backups
+   * in preference order. Everyone else follows, ranked by availability for the
+   * date, covering the recipient's zone, a low current load and a high ranking
+   * — in that priority. The coordinator always makes the final call.
    */
   suggestCollaborators(requestId: string): CollaboratorSuggestion[];
+  /** The family's care team (primary + backups), as configured by the Admin. */
+  careTeamFor(familyId: string): CareTeam;
+  /** Reconfigures a family's care team: one primary, up to two distinct backups. */
+  setCareTeam(familyId: string, team: CareTeam): void;
   /** Moves a "new" request to "assigned" with the chosen collaborator. */
   assignRequest(requestId: string, collaboratorId: string): void;
   /** Moves an "assigned" request to "completed"; the closing note is required. */
@@ -380,21 +444,71 @@ export function createStore(storage: Storage): ValCuraStore {
     suggestCollaborators: (requestId) => {
       const request = requireRequest(requestId);
       const recipientZone = CARE_RECIPIENTS.find((r) => r.id === request.recipientId)?.zone;
+      const family = FAMILY_MEMBERS.find((m) => m.recipientId === request.recipientId);
+      const team = family === undefined ? undefined : state.teamByFamily[family.id];
+      // 0 for the primary, 1.. for the backups in order, Infinity outside the team.
+      const teamRank = (collaboratorId: string): number => {
+        if (team === undefined) return Infinity;
+        if (collaboratorId === team.primaryId) return 0;
+        const backupIndex = team.backupIds.indexOf(collaboratorId);
+        return backupIndex === -1 ? Infinity : backupIndex + 1;
+      };
       return state.collaborators
-        .map((collaborator) => ({
-          collaborator,
-          load: state.requests.filter(
-            (r) => r.assigneeId === collaborator.id && r.status === "assigned",
-          ).length,
-          inRecipientZone: collaborator.zone === recipientZone,
-        }))
-        .sort(
-          (a, b) =>
-            Number(b.collaborator.availableToday) - Number(a.collaborator.availableToday) ||
+        .map((collaborator) => {
+          const rank = teamRank(collaborator.id);
+          return {
+            collaborator,
+            load: state.requests.filter(
+              (r) => r.assigneeId === collaborator.id && r.status === "assigned",
+            ).length,
+            inRecipientZone: collaborator.zone === recipientZone,
+            teamRole:
+              rank === 0 ? ("primary" as const) : rank === Infinity ? undefined : ("backup" as const),
+            availableForRequest:
+              collaborator.availableToday &&
+              !state.requests.some(
+                (r) =>
+                  r.status === "assigned" &&
+                  r.assigneeId === collaborator.id &&
+                  r.dueDate === request.dueDate,
+              ),
+          };
+        })
+        .sort((a, b) => {
+          // Continuity wins: team members free for the date come before anyone else.
+          const aTeam = a.availableForRequest ? teamRank(a.collaborator.id) : Infinity;
+          const bTeam = b.availableForRequest ? teamRank(b.collaborator.id) : Infinity;
+          if (aTeam !== bTeam) return aTeam - bTeam;
+          return (
+            Number(b.availableForRequest) - Number(a.availableForRequest) ||
             Number(b.inRecipientZone) - Number(a.inRecipientZone) ||
             a.load - b.load ||
-            b.collaborator.ranking - a.collaborator.ranking,
+            b.collaborator.ranking - a.collaborator.ranking
+          );
+        });
+    },
+    careTeamFor: (familyId) => {
+      const team = state.teamByFamily[familyId];
+      if (team === undefined) throw new Error(`Unknown family: ${familyId}`);
+      return team;
+    },
+    setCareTeam: (familyId, team) => {
+      if (!FAMILY_MEMBERS.some((m) => m.id === familyId)) {
+        throw new Error(`Unknown family: ${familyId}`);
+      }
+      if (!isCareTeam(team, state.collaborators.map((c) => c.id))) {
+        throw new Error(
+          `Invalid care team for ${familyId}: one known primary and up to ` +
+            `${MAX_BACKUP_COLLABORATORS} distinct known backups`,
         );
+      }
+      update({
+        ...state,
+        teamByFamily: {
+          ...state.teamByFamily,
+          [familyId]: { primaryId: team.primaryId, backupIds: [...team.backupIds] },
+        },
+      });
     },
     assignRequest: (requestId, collaboratorId) => {
       const request = requireRequest(requestId);

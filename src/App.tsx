@@ -53,7 +53,7 @@ export function App({ store }: { store: ValCuraStore }) {
         ) : state.role === "family" ? (
           <FamilyView store={store} requests={state.requests} collaborators={state.collaborators} />
         ) : (
-          <AdminView store={store} />
+          <AdminView store={store} collaborators={state.collaborators} />
         )}
       </main>
     </div>

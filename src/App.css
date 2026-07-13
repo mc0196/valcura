@@ -191,10 +191,28 @@ body {
   background: #eef3ef;
 }
 
+.team-note {
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.team-note.primary {
+  color: #15803d;
+}
+
+.team-note.backup {
+  color: #b45309;
+}
+
+.team-note.manual {
+  color: #b91c1c;
+}
+
 .suggestions {
   list-style: none;
   padding: 0;
-  margin-top: 0.75rem;
+  margin-top: 0.5rem;
   display: grid;
   gap: 0.5rem;
 }
@@ -704,6 +722,55 @@ body {
 .badge.today {
   background: #dbeafe;
   color: #1d4ed8;
+}
+
+.badge.team-primary {
+  margin-left: 0.5rem;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.badge.team-backup {
+  margin-left: 0.5rem;
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.care-team {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed #e2e0d8;
+  display: flex;
+  align-items: end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.care-team-caption {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #8a815f;
+  align-self: center;
+  margin-right: 0.25rem;
+}
+
+.team-picker {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #55534d;
+}
+
+.team-picker select {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: inherit;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #cfccc2;
+  border-radius: 0.5rem;
+  background: #fff;
 }
 
 @media (max-width: 480px) {
