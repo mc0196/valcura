@@ -667,6 +667,17 @@ body {
   color: #8a815f;
 }
 
+.plan-usage {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: #8a815f;
+}
+
+.plan-usage.over {
+  color: #b45309;
+  font-weight: 600;
+}
+
 .badge {
   padding: 0.15rem 0.65rem;
   border-radius: 999px;

@@ -1,11 +1,6 @@
 import { PLANS, type PlanId, type ValCuraStore } from "../store/store";
 import { CARE_RECIPIENTS, FAMILY_MEMBERS } from "../store/seed";
-import { formatPlanReport } from "./format";
-
-function usageLabel(used: number, included: number): string {
-  const base = `${used} di ${included} interventi questo mese`;
-  return used > included ? `${base} — oltre il piano` : base;
-}
+import { formatPlanReport, usageLabel } from "./format";
 
 export function AdminView({ store }: { store: ValCuraStore }) {
   return (

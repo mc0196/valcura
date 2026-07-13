@@ -15,6 +15,7 @@ import {
   formatRanking,
   localToday,
   recipientName,
+  usageLabel,
 } from "./format";
 
 function loadLabel(load: number): string {
@@ -46,6 +47,9 @@ export function CoordinatorView({
   const [suggestingForId, setSuggestingForId] = useState<string | null>(null);
 
   const leaderboard = [...collaborators].sort((a, b) => b.ranking - a.ranking);
+  const plan = store.planFor(recipientId);
+  const used = store.monthlyUsage(recipientId);
+  const overPlan = used > plan.monthlyInterventions;
 
   function collaboratorName(collaboratorId: string): string {
     return collaborators.find((c) => c.id === collaboratorId)?.name ?? "Collaboratore sconosciuto";
@@ -71,6 +75,9 @@ export function CoordinatorView({
                 </option>
               ))}
             </select>
+            <span className={overPlan ? "plan-usage over" : "plan-usage"}>
+              Piano {plan.name} · {usageLabel(used, plan.monthlyInterventions)}
+            </span>
           </label>
           <label>
             Tipo di servizio
