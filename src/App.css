@@ -679,6 +679,38 @@ body {
   color: #55534d;
 }
 
+.earnings .recognition-ranking {
+  color: #2e5339;
+}
+
+.period-picker {
+  display: grid;
+  gap: 0.35rem;
+  justify-self: start;
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #55534d;
+}
+
+.period-picker select {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: inherit;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #cfccc2;
+  border-radius: 0.5rem;
+  background: #fff;
+}
+
+.compensation-total th,
+.compensation-total td {
+  font-weight: 700;
+  color: #2e5339;
+  background: #eef3ef;
+}
+
 .plan-note {
   margin-bottom: 0.75rem;
   font-size: 0.85rem;

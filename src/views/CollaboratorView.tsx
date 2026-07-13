@@ -3,8 +3,10 @@ import type { Collaborator, ServiceRequest, ValCuraStore } from "../store/store"
 import {
   SERVICE_LABELS,
   formatDate,
+  formatEuro,
   formatRanking,
   formatStars,
+  localMonthStart,
   localToday,
   recipientName,
 } from "./format";
@@ -12,6 +14,13 @@ import {
 function thanksLabel(thanksCount: number): string {
   if (thanksCount === 0) return "ancora nessun ringraziamento";
   return thanksCount === 1 ? "1 famiglia ti ringrazia" : `${thanksCount} famiglie ti ringraziano`;
+}
+
+function monthMissionsLabel(totalMissions: number): string {
+  if (totalMissions === 0) return "Nessuna missione completata questo mese, per ora";
+  return totalMissions === 1
+    ? "1 missione completata questo mese"
+    : `${totalMissions} missioni completate questo mese`;
 }
 
 export function CollaboratorView({
@@ -29,6 +38,7 @@ export function CollaboratorView({
 
   const today = localToday();
   const me = collaborators.find((c) => c.id === collaboratorId);
+  const monthEarnings = store.compensationSummary(localMonthStart(), today, collaboratorId);
   const mine = requests.filter((r) => r.assigneeId === collaboratorId);
   const missions = mine
     .filter((r) => r.status === "assigned")
@@ -67,6 +77,14 @@ export function CollaboratorView({
           </div>
         </section>
       )}
+
+      <section aria-labelledby="earnings-title">
+        <h2 id="earnings-title">Il tuo compenso del mese</h2>
+        <div className="recognition earnings">
+          <span className="recognition-ranking">{formatEuro(monthEarnings.totalFees)}</span>
+          <span className="recognition-meta">{monthMissionsLabel(monthEarnings.totalMissions)}</span>
+        </div>
+      </section>
 
       <section aria-labelledby="missions-title">
         <h2 id="missions-title">Le mie missioni</h2>
@@ -135,6 +153,7 @@ export function CollaboratorView({
                 </div>
                 <div className="request-meta">
                   {SERVICE_LABELS[mission.service]} · {formatDate(mission.dueDate)}
+                  {mission.fee !== undefined && <> · compenso {formatEuro(mission.fee)}</>}
                 </div>
                 {mission.completionNote !== undefined && (
                   <p className="completion-note">“{mission.completionNote}”</p>
